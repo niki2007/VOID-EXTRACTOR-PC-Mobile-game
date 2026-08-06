@@ -32,7 +32,7 @@ jobs:
             TITLE="📦 $TITLE"
           fi
 
-          MSG="**🤖 VOID EXTRACTOR 🤍**"$'\n'
+          MSG="**🤖 VOID EXTRACTOR 🤍 PC/Mobile**"$'\n'
           MSG+="$TITLE"$'\n'
           MSG+="Author: $AUTHOR"$'\n'
 
