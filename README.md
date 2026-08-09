@@ -2,10 +2,25 @@
 $\color{green}{\text{This reposity contains an HTML game that i made with ChatGPT 5.6 Sol. The game is Fully AI generated, and the only human edits are prompts that i gave to ChatGPT. This is a test of how curret AI is capable to create games.}}$
 
 
-
-
-
 $\color{red}{\text{When everything in this project is AI, then why not just generate the whole experiment explanation with AI too. lol if i had time i would write it myself}}$
+
+
+  <img src="https://github.com/user-attachments/assets/fefd65e9-b9f8-476a-b2c4-6e4e59ef2cca" width="33%" />
+  <img src="https://github.com/user-attachments/assets/4701b9be-fbf0-45cd-afb7-8893ce0c5c43" width="33%" />
+  <img src="https://github.com/user-attachments/assets/5d1c43fb-6d60-4905-b90f-4b7bc6265764" width="33%" />
+
+  <img src="https://github.com/user-attachments/assets/537c7496-1997-4a23-bc61-a9fb700306b5" width="33%" />
+  <img src="https://github.com/user-attachments/assets/5d631b52-baf1-4a3e-a53f-14df87233e6f" width="33%" />
+  <img src="https://github.com/user-attachments/assets/1e0a8015-20cd-4b9f-8e93-331f28d4cf7a" width="33%" />
+
+  <img src="https://github.com/user-attachments/assets/7ae2a715-2791-4516-83f8-9d4c1e2b1f1c" width="33%" />
+  <img src="https://github.com/user-attachments/assets/982a3a63-11ba-4273-8566-78dcba9a1dec" width="33%" />
+  <img src="https://github.com/user-attachments/assets/c166bbb0-904f-4cc6-9dc5-cda905d98a83" width="33%" />
+
+  <img src="https://github.com/user-attachments/assets/a1d02713-1f8c-438c-a58c-ff7e74d90348" width="24%" />
+  <img src="https://github.com/user-attachments/assets/8de08c11-d7bb-4678-ab50-eea28323f618" width="24%" />
+  <img src="https://github.com/user-attachments/assets/16c251ad-1eea-41ea-84b0-959764889f39" width="24%" />
+  <img src="https://github.com/user-attachments/assets/4a930aad-2040-49c0-872c-5820e744e0fc" width="24%" />
 
 ---
 
