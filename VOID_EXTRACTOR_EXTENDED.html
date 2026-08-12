@@ -2204,6 +2204,364 @@ const V51_PASS_MIGRATE_BASE=migrate;
 migrate=function(){V51_PASS_MIGRATE_BASE();for(let i of [...(profile.stash||[]),...(profile.pack||[])])if(i)normalizeItem(i)};
 /* ======================= END v5.1 ENTRY PASS PRESERVATION ======================= */
 
+/* ======================= VOID EXTRACTOR v5.2 // ANOMALY PROTOCOL ======================= */
+const V52_VERSION=5.2;
+
+// ---------- visual additions ----------
+(()=>{let st=document.createElement('style');st.textContent=`
+.rarity-8{color:#ff4b88;text-shadow:0 0 16px rgba(255,45,116,.75),0 0 6px #fff}
+.modebadge.anomaly{border-color:#e94bff;color:#f2b8ff;background:#27102c}
+.minimap-v52{position:absolute;right:8px;bottom:8px;width:154px;height:108px;border:1px solid #7d3344;border-radius:10px;background:rgba(4,1,3,.92);z-index:18;overflow:hidden;box-shadow:0 8px 25px rgba(0,0,0,.45);cursor:pointer;touch-action:manipulation}
+.minimap-v52 canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.minimap-v52:after{content:'MAP · TAP TO EXPAND';position:absolute;left:5px;bottom:4px;font-size:7px;color:#d9a5ae;background:rgba(0,0,0,.62);padding:2px 4px;border-radius:4px;pointer-events:none}
+.minimap-v52.expanded{left:8px;right:8px;top:8px;bottom:8px;width:auto;height:auto;z-index:28;border-color:#ff334d}
+.minimap-v52.expanded:after{content:'EXPANDED MAP · TAP TO MINIMIZE';font-size:9px}
+.root-contract-v52{border-left:3px solid #ff4b88;background:linear-gradient(135deg,rgba(83,12,39,.35),rgba(19,6,12,.96))}
+.root-contract-v52.complete{border-color:#fff1a8;box-shadow:0 0 25px rgba(255,75,136,.16)}
+.root-sub-v52{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.root-sub-v52:last-child{border-bottom:0}
+@media(max-width:520px){.minimap-v52{width:124px;height:88px;right:5px;bottom:5px}.minimap-v52.expanded{left:5px;right:5px;top:5px;bottom:5px;width:auto;height:auto}}
+`;document.head.appendChild(st)})();
+
+// ---------- material tones: between v4.2 saturation and v5.1 pale ----------
+Object.assign(MATERIAL_COLORS_V43,{
+ scrap:'#c8d0d7',cloth:'#aee3bc',essence:'#ceb6f4',core:'#f4aaa5',
+ circuit:'#a8ddf2',catalyst:'#efd29c',prism:'#ddaeea'
+});
+
+// ---------- special ROOTFORGED rarity ----------
+if(!RARITIES.some(r=>r.name==='ROOTFORGED'))RARITIES.push({name:'ROOTFORGED',mult:7.4,color:'#ff4b88',aff:8,sell:78});
+const ROOT_TRAITS_V52=[
+ {name:'ROOT // Recursive Violence',desc:'+35% damage and +10 penetration',apply:i=>{i.bonusDamage=(i.bonusDamage||0)+.35;i.pen=(i.pen||0)+10}},
+ {name:'ROOT // Impossible Geometry',desc:'+12% critical chance and +25% critical damage',apply:i=>{i.crit=(i.crit||0)+.12;i.critDamage=(i.critDamage||0)+.25}},
+ {name:'ROOT // Self-Healing Lattice',desc:'+30 HP, +18 barrier and regeneration',apply:i=>{i.hp=(i.hp||0)+30;i.barrier=(i.barrier||0)+18;i.regen=(i.regen||0)+1.4}},
+ {name:'ROOT // Absolute Ward',desc:'+18 all resistance and +8 armor',apply:i=>{i.allResist=(i.allResist||0)+18;i.armor=(i.armor||0)+8}},
+ {name:'ROOT // Probability Theft',desc:'+14% loot luck and +12% dodge',apply:i=>{i.lootLuck=(i.lootLuck||0)+.14;i.dodge=(i.dodge||0)+.12}},
+ {name:'ROOT // Infinite Magazine',desc:'+22% ammo refund and +18% multishot',apply:i=>{i.ammoRefund=(i.ammoRefund||0)+.22;i.multishot=(i.multishot||0)+.18}}
+];
+const V52_BASE_GEN_ITEM=genItem;
+genItem=function(level=1,forcedType=null,minRarity=0,r=Math.random){
+ let root=raid?.operation?.id==='void_root';let i=V52_BASE_GEN_ITEM(level,forcedType,root?Math.max(8,minRarity):minRarity,r);
+ if(root&&i?.slot){i.rarity=8;i.rootforgedV52=true;i.affixes||=[];if(!i.affixes.some(a=>String(a.name).startsWith('ROOT //'))){let t=pick(ROOT_TRAITS_V52,r);t.apply(i);i.affixes.push({name:t.name,desc:t.desc,polarity:'positive'})}i.value=Math.max(i.value||0,Math.round((i.value||100)*1.65));normalizeItem(i)}
+ return i
+};
+
+// ---------- treasure rebalance ----------
+SPECIAL_OPERATIONS_V4.apex_reserve.desc='A compact enemy-free treasury containing Q5–Q7 containers. At least three Q6 caches are guaranteed so the ¤70,000 permit cannot produce a low-tier-only reserve.';
+SPECIAL_OPERATIONS_V4.apex_reserve.rules=['Consumes one Apex Treasury Permit','No enemies','5–20 unlocked Q5/Q6/Q7 premium containers','At least three Q6 containers guaranteed'];
+SPECIAL_OPERATIONS_V4.creator_vault.desc="The final enemy-free reserve. Entry consumes a ¤200,000 Creator Vault Seal and reveals four unlocked Q7 containers, a replacement treasure authorization, and the Ascendant developer letter.";
+SPECIAL_OPERATIONS_V4.creator_vault.rules=['Consumes one Creator Vault Seal','No enemies','4 unlocked Q7 containers','One prior treasure-sector pass and the Ascendant developer letter are guaranteed'];
+
+// ---------- new entry cards ----------
+Object.assign(ENTRY_PASS_DEFS_V51,{
+ treasury_pass:{name:'Warden Treasury Charter',icon:'♜',value:140000,target:'warden_treasury',desc:'Consumed to enter the Warden Treasury.'},
+ sanctum_pass:{name:'Gemstone Sanctum Sigil',icon:'💠',value:165000,target:'gem_sanctum',desc:'Consumed to enter the Gemstone Sanctum.'}
+});
+const V52_BASE_PASS_KIND=passKindForOperationV51;
+passKindForOperationV51=function(id){return ({warden_treasury:'treasury_pass',gem_sanctum:'sanctum_pass'})[id]||V52_BASE_PASS_KIND(id)};
+
+// ---------- new consumables ----------
+Object.assign(CONSUMABLES,{
+ greater_med:{name:'Advanced Medkit',type:'consumable',kind:'greater_med',icon:'✚',heal:72,weight:1,size:1,value:145,desc:'Restores a large amount of health. Intended for dangerous midgame sectors.'},
+ trauma_kit:{name:'Trauma Reconstruction Kit',type:'consumable',kind:'trauma_kit',icon:'🧰',heal:125,weight:1.4,size:2,value:310,desc:'High-end trauma treatment capable of restoring massive health.'},
+ barrier_cell:{name:'Aegis Barrier Cell',type:'consumable',kind:'barrier_cell',icon:'⬡',barrier:55,weight:.45,size:1,value:190,desc:'Immediately restores temporary barrier beyond normal passive recovery.'},
+ phoenix_serum:{name:'Phoenix Serum',type:'consumable',kind:'phoenix_serum',icon:'♨',heal:42,weight:.4,size:1,value:260,desc:'Restores health immediately and activates powerful regeneration.'},
+ purity_injector:{name:'Purity Injector',type:'consumable',kind:'purity_injector',icon:'⚗',weight:.25,size:1,value:175,desc:'Purges all harmful statuses and stabilizes the operator.'},
+ emergency_capacitor:{name:'Emergency Capacitor',type:'consumable',kind:'emergency_capacitor',icon:'ϟ',weight:.35,size:1,value:165,desc:'Refills energy and grants Focus for several turns.'},
+ armor_nanopatch:{name:'Armor Nanopatch',type:'consumable',kind:'armor_nanopatch',icon:'▤',armorRepair:65,weight:.7,size:1,value:205,desc:'Repairs a large amount of durability across equipped armor.'},
+ cloak_field:{name:'Phase Cloak Field',type:'consumable',kind:'cloak_field',icon:'☾',weight:.55,size:1,value:290,desc:'Creates a long-duration distortion field that sharply increases dodge.'},
+ stasis_capsule:{name:'Stasis Capsule',type:'consumable',kind:'stasis_capsule',icon:'◫',weight:.65,size:1,value:340,desc:'Freezes every currently visible hostile for two turns.'},
+ recall_beacon:{name:'Extraction Recall Beacon',type:'consumable',kind:'recall_beacon',icon:'⌂',weight:1,size:2,value:480,desc:'Teleports the operator to the floor extraction gate. It does not bypass extraction channel requirements.'},
+ void_tonic:{name:'Void Combat Tonic',type:'consumable',kind:'void_tonic',icon:'◈',weight:.3,size:1,value:245,desc:'Sacrifices health for Focus, energy and barrier. Dangerous but powerful.'}
+});
+
+// ---------- skills ----------
+const V52_SKILLS=[
+ {id:'hazardshield',branch:'Survival',name:'Environmental Hardening',max:5,desc:'-6% direct environmental damage / rank'},
+ {id:'keycare',branch:'Scavenging',name:'Access Preservation',max:5,desc:'-7% key durability consumption chance / rank'},
+ {id:'fieldvision',branch:'Tactics',name:'Recon Mapping',max:4,desc:'+0.75 tiles vision radius / rank'},
+ {id:'consumabletech',branch:'Survival',name:'Combat Pharmacology',max:4,desc:'+10% healing and barrier from advanced consumables / rank'},
+ {id:'anomalyhunter',branch:'Combat',name:'Anomaly Doctrine',max:5,desc:'+5% damage in Anomaly sectors / rank'},
+ {id:'predatorbane',branch:'Combat',name:'Apex Predator Doctrine',max:4,desc:'+7% damage against specimen/predator enemies / rank'},
+ {id:'rootstudy',branch:'Combat',name:'ROOT Comprehension',max:5,desc:'+4% damage and +2 all resistance inside VOID//ROOT / rank'},
+ {id:'nightops',branch:'Tactics',name:'Night Operations',max:4,desc:'+5% dodge in darkness and weather sectors / rank'},
+ {id:'temporal',branch:'Tactics',name:'Temporal Discipline',max:4,desc:'Reduces Time Fracture fast-cycle pressure and improves energy recovery / rank'},
+ {id:'entropyguard',branch:'Survival',name:'Entropy Insulation',max:4,desc:'-8% Entropy/VOID hazard damage / rank'},
+ {id:'treasureappraisal',branch:'Scavenging',name:'Deep Appraisal',max:4,desc:'+8% sale value for Mythic, Ascendant and ROOTFORGED equipment / rank'},
+ {id:'fieldcraft',branch:'Scavenging',name:'Field Fabrication',max:4,desc:'+10% salvage yield / rank'}
+];
+for(let s of V52_SKILLS)if(!SKILLS.some(x=>x.id===s.id))SKILLS.push(s);
+const V52_BASE_EFFECTS=effects;
+effects=function(){let e=V52_BASE_EFFECTS(),s=profile.skills||{};e.hazardReduction=(s.hazardshield||0)*.06;e.keyCare=(s.keycare||0)*.07;e.fovBonus=(s.fieldvision||0)*.75;e.consumablePower=(s.consumabletech||0)*.10;e.anomalyDamage=(s.anomalyhunter||0)*.05;e.predatorDamage=(s.predatorbane||0)*.07;e.rootDamage=(s.rootstudy||0)*.04;e.rootResist=(s.rootstudy||0)*2;e.nightDodge=(s.nightops||0)*.05;e.temporal=(s.temporal||0);e.entropyReduction=(s.entropyguard||0)*.08;e.appraisal=(s.treasureappraisal||0)*.08;e.salvage+=(s.fieldcraft||0)*.10;return e};
+const V52_BASE_COMPUTE_STATS=computePlayerStats;
+computePlayerStats=function(fullHeal=false){let p=V52_BASE_COMPUTE_STATS(fullHeal);if(!raid?.player)return p;let e=effects(),id=raid.operation?.id;if(id==='void_root'){for(let k of ['fire','cold','shock','toxic','void'])raid.player.resist[k]=(raid.player.resist[k]||0)+e.rootResist}if(['longnight','rain','bloodmoon'].includes(id))raid.player.dodge=clamp((raid.player.dodge||0)+e.nightDodge,0,.8);return raid.player};
+const V52_BASE_LOCK_USE=lockUseChanceV4;
+lockUseChanceV4=function(){return clamp(V52_BASE_LOCK_USE()-(effects().keyCare||0),.12,1)};
+
+// ---------- recipes ----------
+const V52_RECIPES=[
+ {id:'greater_med',cat:'Advanced Supplies',name:'Advanced Medkit',out:()=>makeConsumable('greater_med'),cost:{cloth:4,catalyst:3,circuit:2}},
+ {id:'trauma_kit',cat:'Advanced Supplies',name:'Trauma Reconstruction Kit',out:()=>makeConsumable('trauma_kit'),cost:{cloth:8,catalyst:7,circuit:4,essence:2}},
+ {id:'barrier_cell',cat:'Advanced Supplies',name:'Aegis Barrier Cell',out:()=>makeConsumable('barrier_cell'),cost:{circuit:5,essence:4,prism:1}},
+ {id:'phoenix_serum',cat:'Advanced Supplies',name:'Phoenix Serum',out:()=>makeConsumable('phoenix_serum'),cost:{cloth:3,catalyst:6,essence:3}},
+ {id:'purity_injector',cat:'Advanced Supplies',name:'Purity Injector',out:()=>makeConsumable('purity_injector'),cost:{catalyst:4,essence:3,circuit:1}},
+ {id:'emergency_capacitor',cat:'Advanced Supplies',name:'Emergency Capacitor',out:()=>makeConsumable('emergency_capacitor'),cost:{circuit:7,catalyst:3}},
+ {id:'armor_nanopatch',cat:'Advanced Supplies',name:'Armor Nanopatch',out:()=>makeConsumable('armor_nanopatch'),cost:{scrap:7,circuit:4,cloth:2}},
+ {id:'cloak_field',cat:'Advanced Supplies',name:'Phase Cloak Field',out:()=>makeConsumable('cloak_field'),cost:{circuit:7,essence:6,prism:2}},
+ {id:'stasis_capsule',cat:'Advanced Supplies',name:'Stasis Capsule',out:()=>makeConsumable('stasis_capsule'),cost:{circuit:9,essence:8,prism:3}},
+ {id:'recall_beacon',cat:'Advanced Supplies',name:'Extraction Recall Beacon',out:()=>makeConsumable('recall_beacon'),cost:{scrap:8,circuit:12,essence:8,core:1}},
+ {id:'void_tonic',cat:'Advanced Supplies',name:'Void Combat Tonic',out:()=>makeConsumable('void_tonic'),cost:{catalyst:7,essence:7,prism:1}},
+ {id:'key_warden',cat:'Keys',name:'Warden Q5 Cipher',out:()=>makeKeyV4(5),cost:{circuit:18,catalyst:12,essence:10,prism:4,core:1}},
+ {id:'key_apex',cat:'Keys',name:'Apex Q6 Cipher',out:()=>makeKeyV4(6),cost:{circuit:42,catalyst:28,essence:30,prism:14,core:5}},
+ {id:'key_singularity',cat:'Keys',name:'Singularity Q7 Cipher',out:()=>makeKeyV4(7),cost:{circuit:75,catalyst:55,essence:60,prism:30,core:12}},
+ {id:'ascendant_forge',cat:'Equipment',name:'Ascendant Pattern Gear',out:()=>genItem(profile.level+16,null,7),cost:{scrap:55,circuit:35,catalyst:28,essence:38,prism:18,core:8}},
+ {id:'anomaly_cache',cat:'Equipment',name:'Anomaly-Calibrated Gear',out:()=>genItem(profile.level+10,null,5),cost:{scrap:30,circuit:20,catalyst:14,essence:18,prism:6,core:3}}
+];
+for(let r of V52_RECIPES)if(!RECIPES.some(x=>x.id===r.id))RECIPES.push(r);
+Object.assign(RECIPE_DESCRIPTIONS_V42,{
+ greater_med:'A stronger medical package for high-threat deployments.',trauma_kit:'Endgame trauma reconstruction with very high immediate healing.',barrier_cell:'Condenses anomaly energy into a disposable barrier reserve.',phoenix_serum:'Combines immediate healing with sustained regeneration.',purity_injector:'Purges harmful raid statuses in one action.',emergency_capacitor:'High-density cell that restores energy and Focus.',armor_nanopatch:'Large field repair package for worn armor.',cloak_field:'Long-duration defensive phase distortion.',stasis_capsule:'Freezes every visible hostile for two turns.',recall_beacon:'Returns the operator to the current floor extraction gate without completing extraction.',void_tonic:'Trades health for aggressive combat resources.',key_warden:'Crafts an exact Q5 Warden key.',key_apex:'Crafts an exact Q6 Apex key at extreme material cost.',key_singularity:'Crafts an exact Q7 Singularity key at extreme material cost.',ascendant_forge:'Fabricates guaranteed Ascendant equipment.',anomaly_cache:'Fabricates high-end equipment calibrated for anomaly operations.'
+});
+
+// ---------- three skill points / level + paid skill reset ----------
+gainXP=function(n){n=Math.round(n*(1+(effects().xpBonus||0)));profile.xp+=n;let levels=0;while(profile.xp>=xpNeed()){profile.xp-=xpNeed();profile.level++;profile.skillPoints=(profile.skillPoints||0)+3;profile.credits+=100+profile.level*20;levels++}if(levels)toast(`LEVEL UP // +${levels*3} skill points`,'good')};
+function totalSkillPointsForLevelV52(){return 1+Math.max(0,(profile.level||1)-1)*3}
+const V52_BASE_RENDER_SKILLS=renderSkills;
+renderSkills=function(){V52_BASE_RENDER_SKILLS();let main=$('#main'),first=main?.querySelector('.sectiontitle');if(!main||!first)return;let cost=2000,dev=devFreeV43();first.insertAdjacentHTML('afterend',`<div class="card spread"><div><b>SKILL RESET</b><p class="muted">Refund every purchased operator skill and restore ${totalSkillPointsForLevelV52()} total points for your current level. Weapon mastery and Legacy upgrades are untouched.</p></div><button class="btn small danger" id="resetSkillsV52">${dev?'RESET // DEV':`RESET ¤${fmt(cost)}`}</button></div>`);$('#resetSkillsV52').onclick=()=>{if(!dev&&profile.credits<cost)return toast('Need ¤2,000 to reset skills','bad');confirmModal('Reset all operator skills?',`${dev?'DEV mode: no charge.':'Cost ¤2,000.'} All skill ranks will be cleared and ${totalSkillPointsForLevelV52()} skill points restored.`,()=>{if(!dev)profile.credits-=cost;profile.skills={};profile.skillPoints=totalSkillPointsForLevelV52();save();renderSkills();toast('Operator skills reset','good')})}}
+
+// ---------- advanced consumable behavior ----------
+function consumeAdvancedV52(i,fn){commitTurn(()=>{fn();i.qty=(i.qty||1)-1;if(i.qty<=0)raid.player.bag=raid.player.bag.filter(x=>x.id!==i.id)});closeModal()}
+const V52_BASE_USE_ITEM=useRaidItem;
+useRaidItem=function(id){let p=raid?.player,i=p?.bag?.find(x=>x.id===id);if(!i||i.type!=='consumable')return V52_BASE_USE_ITEM(id);let power=1+(effects().consumablePower||0);
+ if(i.kind==='greater_med'||i.kind==='trauma_kit')return consumeAdvancedV52(i,()=>{let n=Math.round((i.heal||0)*(1+p.healBonus)*power);p.hp=Math.min(p.maxHp,p.hp+n);logMsg(`${i.name} restored ${n} HP.`,'good')});
+ if(i.kind==='barrier_cell')return consumeAdvancedV52(i,()=>{let n=Math.round((i.barrier||55)*power);p.barrierNow=Math.min((p.barrier||0)+100,(p.barrierNow||0)+n);logMsg(`Aegis cell restored ${n} barrier.`,'good')});
+ if(i.kind==='phoenix_serum')return consumeAdvancedV52(i,()=>{let n=Math.round((i.heal||42)*(1+p.healBonus)*power);p.hp=Math.min(p.maxHp,p.hp+n);addStatus(p,'regen',7,Math.max(5,Math.round(7*power)));logMsg('Phoenix Serum ignites regenerative nanites.','good')});
+ if(i.kind==='purity_injector')return consumeAdvancedV52(i,()=>{p.statuses=p.statuses.filter(s=>['focus','regen','cloak'].includes(s.type));logMsg('Purity Injector removed harmful statuses.','good')});
+ if(i.kind==='emergency_capacitor')return consumeAdvancedV52(i,()=>{p.energy=p.maxEnergy;addStatus(p,'focus',9,1);logMsg('Emergency Capacitor restored full energy.','good')});
+ if(i.kind==='armor_nanopatch')return consumeAdvancedV52(i,()=>{let fixed=0;for(let a of Object.values(p.equipment).filter(x=>x?.type==='armor'&&x.maxDurability)){let before=a.durability;a.durability=Math.min(a.maxDurability,a.durability+Math.round(65*power));fixed+=a.durability-before}computePlayerStats();logMsg(`Nanopatch restored ${Math.round(fixed)} total armor durability.`,'good')});
+ if(i.kind==='cloak_field')return consumeAdvancedV52(i,()=>{addStatus(p,'cloak',12,.36);logMsg('Phase Cloak Field active.','good')});
+ if(i.kind==='stasis_capsule')return consumeAdvancedV52(i,()=>{let hits=raid.enemies.filter(e=>e.hp>0&&raid.map.visible[e.y]?.[e.x]);for(let e of hits)addStatus(e,'stun',2,1);logMsg(`Stasis froze ${hits.length} visible hostiles.`,'good')});
+ if(i.kind==='recall_beacon')return consumeAdvancedV52(i,()=>{let ex=raid.props.find(q=>q.type==='extract');if(ex){p.x=ex.x;p.y=ex.y;raid.extractCharge=0;logMsg('Recall Beacon returned operator to extraction.','good')}});
+ if(i.kind==='void_tonic')return consumeAdvancedV52(i,()=>{p.hp=Math.max(1,p.hp-Math.round(p.maxHp*.16));p.energy=p.maxEnergy;p.barrierNow=(p.barrierNow||0)+35;addStatus(p,'focus',12,1);logMsg('Void Tonic trades blood for combat overdrive.','warn')});
+ return V52_BASE_USE_ITEM(id)
+};
+quickUse=function(){let p=raid?.player;if(!p)return;let kinds=['trauma_kit','greater_med','medkit','phoenix_serum'],med=kinds.map(k=>p.bag.find(i=>i.type==='consumable'&&i.kind===k)).find(Boolean);if(!med)return toast('No healing consumable in backpack','bad');useRaidItem(med.id)};
+
+// ---------- sectors ----------
+DUNGEON_TYPES.hollow={id:'hollow',name:'Hollow City',icon:'▥',desc:'A massive ruined urban district of streets, alleys, connected buildings and interior blocks. Its map is several times larger than a normal expedition floor.',hazards:['shock','toxic','fire'],loot:'mixed',threat:1.72,reward:1.88,rarity:.085,color:'#d69a9f'};
+Object.assign(SPECIAL_OPERATIONS_V4,{
+ entropy:{id:'entropy',kind:'anomaly',name:'Entropy Engine',icon:'⌁',color:'#ff6c9b',desc:'A failing reality processor grows less stable every turn. Walls rupture open, hazards multiply and the reward signal rises with accumulated entropy.',maxFloor:8,threat:2.72,reward:2.65,rarity:.16,loot:'relic',hazards:['fire','shock','void'],enemyZone:'entropy',rules:['Entropy increases during every floor','Walls rupture rather than simply blocking routes','Hazard density escalates with time','Late extraction yields stronger loot pressure'],generation:'entropy'},
+ timefracture:{id:'timefracture',kind:'anomaly',name:'Time Fracture Laboratory',icon:'◴',color:'#d8b1ff',desc:'Temporal fields alternate between Slow, Normal, Fast and Frozen states. Fast cycles can give hostiles additional actions while temporal anchors briefly stabilize the floor.',maxFloor:8,threat:2.78,reward:2.72,rarity:.17,loot:'implant',hazards:['cold','shock','void'],enemyZone:'timefracture',rules:['Temporal phase changes every few turns','FAST phases can grant a second enemy action','Temporal anchors force a short SLOW window','Status pressure changes with the clock'],generation:'timefracture'},
+ mirror:{id:'mirror',kind:'anomaly',name:'Mirror Complex',icon:'◫',color:'#c9d8ff',desc:'A symmetrical facility where mirror gates cross the axis and hostile reflections periodically emerge on the opposite side of the map.',maxFloor:8,threat:2.88,reward:2.82,rarity:.18,loot:'relic',hazards:['cold','void'],enemyZone:'mirror',rules:['Perfectly mirrored topology','Paired mirror gates teleport across the axis','Enemy reflections can emerge during long fights','Some caches are unstable reflections'],generation:'mirror'},
+ redshift:{id:'redshift',kind:'anomaly',name:'Red Shift Station',icon:'↻',color:'#ff6b62',desc:'The station continuously rotates elemental spectra. Weapon and hostile damage types shift together, forcing resistance and weapon planning to change during combat.',maxFloor:8,threat:3.08,reward:2.96,rarity:.19,loot:'weapon',hazards:['fire','cold','shock','toxic','void'],enemyZone:'redshift',rules:['Damage spectrum rotates every six turns','Player weapons inherit the current spectral shift','Enemy attacks rotate through the same matrix','Elemental resistance priorities constantly change'],generation:'redshift'},
+ civilwar:{id:'civilwar',kind:'anomaly',name:'Warden Civil War',icon:'⚔',color:'#ffbd82',desc:'Two hostile Warden factions occupy the same sector and actively attack each other. Both command signals must collapse before descent is authorized.',maxFloor:8,threat:2.58,reward:2.48,rarity:.145,loot:'weapon',hazards:['shock','void'],enemyZone:'civilwar',rules:['Two hostile factions fight independently','Both Warden commanders must die','You can let factions weaken one another','Crossfire changes the safest route dynamically'],generation:'civilwar'},
+ longnight:{id:'longnight',kind:'anomaly',name:'The Long Night',icon:'☾',color:'#9eb5da',desc:'One enormous night map. Activate four distant signal towers while vision deteriorates and hunters grow more aggressive, then reach extraction.',maxFloor:1,threat:3.22,reward:3.10,rarity:.22,loot:'relic',hazards:['cold','void'],enemyZone:'longnight',rules:['One enormous objective map','Four distant signal towers unlock extraction','Very short darkness-limited vision','Hunting pressure rises as the night deepens'],generation:'longnight'},
+ predator:{id:'predator',kind:'variant',name:'Predator Reserve',icon:'☠',color:'#f18b68',desc:'An extremely hard hunting preserve with very few hostiles—but each roaming predator is powerful enough to end an unprepared raid. Scent pulses periodically wake every creature.',maxFloor:5,threat:3.45,reward:3.20,rarity:.23,loot:'relic',hazards:['toxic','void','cold'],enemyZone:'predator',rules:['Very low enemy count','Every predator is an apex-level threat','Scent pulses wake the entire reserve','Predators have extreme damage and durability'],generation:'predator'},
+ warden_treasury:{id:'warden_treasury',kind:'treasure',name:'Warden Treasury',icon:'♜',color:'#ffd582',desc:'A pass-only security treasury with escalating premium chambers and no normal enemy population. Environmental security pulses punish greedy routes.',maxFloor:1,threat:0,reward:1,rarity:.2,loot:'relic',hazards:['shock','void'],enemyZone:'none',rules:['Consumes one Warden Treasury Charter','No normal enemies','Escalating Q5–Q7 premium chambers','Security pulses activate while looting'],generation:'warden_treasury'},
+ gem_sanctum:{id:'gem_sanctum',kind:'treasure',name:'Gemstone Sanctum',icon:'💠',color:'#f0a9ff',desc:'An enemy-free pass sector dedicated to T4–T7 gems, resonance reliquaries and high-tier socket materials.',maxFloor:1,threat:0,reward:1,rarity:.2,loot:'relic',hazards:[],enemyZone:'none',rules:['Consumes one Gemstone Sanctum Sigil','No enemies','High-tier gem reliquaries','Guaranteed Resonance Altar reward'],generation:'gem_sanctum'},
+ void_root:{id:'void_root',kind:'anomaly',name:'VOID//ROOT',icon:'✹',color:'#ff4b88',desc:'ENDGAME PROTOCOL. A ten-floor convergence of multiple sector laws. ROOTFORGED equipment exists only here and is roughly twice the Ascendant power scale.',maxFloor:10,threat:4.60,reward:4.25,rarity:.35,loot:'root',hazards:['fire','cold','shock','toxic','void'],enemyZone:'void_root',rules:['Unlocked by completing the ROOT extraction protocol','DEV mode bypasses the unlock','Every floor combines multiple anomaly mechanics','ROOTFORGED equipment is exclusive to this operation'],generation:'void_root'}
+});
+SPECIAL_OPERATIONS_V4.paradox.kind='anomaly';
+
+// ---------- enemy rosters ----------
+ENEMY_TYPES.push(
+ {name:'Entropy Husk',icon:'e',hp:92,damage:28,armor:12,type:'void',xp:82,credits:68,ai:'hunter',color:'#ff7aa7',zones:['entropy']},
+ {name:'Clockbreaker',icon:'t',hp:86,damage:30,armor:10,type:'shock',xp:86,credits:70,ai:'ranged',range:8,color:'#d5c2ff',zones:['timefracture']},
+ {name:'Mirror Stalker',icon:'m',hp:90,damage:31,armor:11,type:'cold',xp:88,credits:72,ai:'hunter',color:'#c9dcff',zones:['mirror']},
+ {name:'Spectrum Knight',icon:'r',hp:104,damage:32,armor:17,type:'fire',xp:94,credits:78,ai:'melee',color:'#ff7169',zones:['redshift']},
+ {name:'Warden Loyalist',icon:'L',hp:92,damage:27,armor:16,type:'kinetic',xp:80,credits:66,ai:'hunter',color:'#ffcf8f',zones:['civilwar']},
+ {name:'Warden Secessionist',icon:'S',hp:88,damage:29,armor:13,type:'shock',xp:82,credits:67,ai:'ranged',range:8,color:'#a8d8ff',zones:['civilwar']},
+ {name:'Night Hunter',icon:'n',hp:120,damage:36,armor:14,type:'void',xp:105,credits:90,ai:'hunter',color:'#9eb5da',zones:['longnight']},
+ {name:'Razorback Apex',icon:'R',hp:240,damage:50,armor:28,type:'kinetic',xp:180,credits:150,ai:'hunter',color:'#e58a67',zones:['predator'],predator:true},
+ {name:'Null Prowler',icon:'N',hp:205,damage:55,armor:20,type:'void',xp:185,credits:155,ai:'hunter',color:'#d18cff',zones:['predator'],predator:true},
+ {name:'Venom Behemoth',icon:'V',hp:265,damage:47,armor:32,type:'toxic',xp:190,credits:160,ai:'hunter',color:'#a9dc7d',zones:['predator'],predator:true},
+ {name:'ROOT PROCESS',icon:'Ø',hp:310,damage:58,armor:34,type:'void',xp:240,credits:210,ai:'hunter',color:'#ff4b88',zones:['void_root'],rootEnemy:true},
+ {name:'ROOT EXECUTOR',icon:'X',hp:270,damage:62,armor:28,type:'shock',xp:235,credits:205,ai:'ranged',range:9,color:'#fff1a8',zones:['void_root'],rootEnemy:true}
+);
+
+// ---------- operation loot curves ----------
+const V52_BASE_RARITY_BOOST=operationRarityBoostV5;
+operationRarityBoostV5=function(op=raid?.operation){let m={hollow:1.55,entropy:1.90,timefracture:1.92,mirror:1.94,redshift:1.98,civilwar:1.86,longnight:2,predator:2,void_root:2,warden_treasury:1,gem_sanctum:1};return m[op?.id]??V52_BASE_RARITY_BOOST(op)};
+const V52_BASE_RARITY_CAP=operationRarityCapV41;
+operationRarityCapV41=function(){let id=raid?.operation?.id,d=Math.max(1,raid?.floor||1);if(id==='hollow')return [3,3,4,4,5,5,6,6,7,7][Math.min(9,d-1)];if(['entropy','timefracture','mirror','civilwar'].includes(id))return [4,4,5,5,6,6,7,7][Math.min(7,d-1)];if(id==='redshift')return [4,5,5,6,6,7,7,7][Math.min(7,d-1)];if(id==='longnight'||id==='predator')return 7;if(id==='void_root')return 8;if(['warden_treasury','gem_sanctum'].includes(id))return 7;return V52_BASE_RARITY_CAP()};
+const V52_BASE_RARITY_FACTOR=operationRarityFactorV41;
+operationRarityFactorV41=function(){let id=raid?.operation?.id,m={hollow:1.03,entropy:1.12,timefracture:1.13,mirror:1.14,redshift:1.18,civilwar:1.10,longnight:1.20,predator:1.20,void_root:1.30,warden_treasury:1.2,gem_sanctum:1.2};return m[id]??V52_BASE_RARITY_FACTOR()};
+const V52_BASE_LOOT_CURVE=operationLootCurveV41;
+operationLootCurveV41=function(op){op=op||resolveOperationV4();let m={hollow:'HARD STANDARD — massive-city rarity ×1.55',entropy:'ANOMALY — entropy opportunity ×1.90',timefracture:'ANOMALY — temporal opportunity ×1.92',mirror:'ANOMALY — reflection opportunity ×1.94',redshift:'ANOMALY — spectral opportunity ×1.98',civilwar:'ANOMALY — faction-war opportunity ×1.86',longnight:'ANOMALY — maximum 2× rarity opportunity',predator:'EXTREME — maximum 2× rarity opportunity',void_root:'ROOTFORGED ONLY — exclusive ninth rarity',warden_treasury:'CARD — escalating Q5/Q6/Q7 treasury',gem_sanctum:'CARD — T4–T7 gem economy'};return m[op.id]||V52_BASE_LOOT_CURVE(op)};
+const V52_BASE_EXTRACT_STEPS=extractionStepsForOperationV41;
+extractionStepsForOperationV41=function(op,depth=1){let b={hollow:5,entropy:6,timefracture:6,mirror:6,redshift:7,civilwar:6,longnight:7,predator:7,void_root:8,warden_treasury:1,gem_sanctum:1}[op?.id];if(b!=null)return clamp(b+(depth>=7&&op.id!=='void_root'&&b>1?1:0),1,9);return V52_BASE_EXTRACT_STEPS(op,depth)};
+
+// ---------- builders ----------
+function buildHollowCityV52(r,w=61,h=41){let tiles=Array.from({length:h},()=>Array(w).fill('#')),rooms=[];let xs=[3,15,27,39,51],ys=[3,13,23,33];for(let y=2;y<h-2;y++)for(let x=2;x<w-2;x++)if(xs.some(v=>Math.abs(x-v)<=1)||ys.some(v=>Math.abs(y-v)<=1))tiles[y][x]='.';for(let gy=0;gy<ys.length-1;gy++)for(let gx=0;gx<xs.length-1;gx++){let x=xs[gx]+3,y=ys[gy]+3,rw=Math.max(5,xs[gx+1]-xs[gx]-5),rh=Math.max(4,ys[gy+1]-ys[gy]-5);if(r()<.15)continue;for(let yy=y;yy<Math.min(h-2,y+rh);yy++)for(let xx=x;xx<Math.min(w-2,x+rw);xx++){let edge=yy===y||yy===y+rh-1||xx===x||xx===x+rw-1;tiles[yy][xx]=edge?'#':'.'}let doors=[[x+Math.floor(rw/2),y],[x+Math.floor(rw/2),y+rh-1],[x,y+Math.floor(rh/2)],[x+rw-1,y+Math.floor(rh/2)]];for(let d of doors.sort(()=>r()-.5).slice(0,1+(r()<.35?1:0)))if(tiles[d[1]]?.[d[0]]!=null)tiles[d[1]][d[0]]='.';rooms.push({x,y,w:rw,h:rh,cx:x+Math.floor(rw/2),cy:y+Math.floor(rh/2)})}for(let x=0;x<w;x++){tiles[0][x]='#';tiles[h-1][x]='#'}for(let y=0;y<h;y++){tiles[y][0]='#';tiles[y][w-1]='#'}if(!rooms.length)rooms.push({x:2,y:2,w:7,h:7,cx:4,cy:4});return{w,h,tiles,rooms}}
+function buildMirrorV52(r){let b=buildMaze(r,39,27),mid=Math.floor(b.w/2);for(let y=1;y<b.h-1;y++)for(let x=1;x<mid;x++)b.tiles[y][b.w-1-x]=b.tiles[y][x];for(let y=1;y<b.h-1;y++)b.tiles[y][mid]='.';return b}
+function buildLongNightV52(r){return buildHollowCityV52(r,67,45)}
+function buildPredatorV52(r){let b=buildCave(r,55,39);for(let c of openCells(b))if(r()<.035)b.tiles[c.y][c.x]=pick(['T','V','C'],r);return b}
+function buildRootV52(r){let f=raid.floor||1;if(f===1)return buildClassic(r,41,29);if(f===2)return buildCave(r,47,33);if(f===3)return buildMaze(r,43,31);if(f===4)return buildGrandChambersV43(r);if(f===5)return buildTransitGridV43(r);if(f===6)return buildHollowCityV52(r,53,37);if(f===7)return buildMirrorV52(r);if(f===8)return buildCave(r,51,35);if(f===9)return buildGrandV44(r,47,33);return buildArena(r,41,29)}
+
+function initOperationFromBuiltV52(op,built,r){let start=nearestOpen(built,built.rooms?.[0]?.cx||2,built.rooms?.[0]?.cy||2),far=farthestCell(built,start);try{carveSecureVaultsV43(built,r,Math.floor(r()*3),start,far);addVerticalAnnexesV43(built,r,Math.floor(r()*3))}catch(e){}initializeNewFloorV5(op,built,start,far,r);repairMandatoryRouteV5();raid.floorStyle=op.name.toUpperCase();raid.objective=objectiveTextV4();return {start,far}}
+function addUniquePropsV52(type,count,start,r){let occupied=new Set((raid.props||[]).map(p=>keyXY(p.x,p.y)));for(let n=0;n<count;n++){let c=safeRandomOpenV5(raid.map,r,start,occupied,6);if(!c)continue;occupied.add(keyXY(c.x,c.y));raid.props.push({type,x:c.x,y:c.y,icon:type==='time_anchor'?'◴':type==='mirror_gate'?'◫':type==='night_beacon'?'⌁':'⌘',opened:false,index:n})}}
+function initAnomalyV52(op,built,r){let {start}=initOperationFromBuiltV52(op,built,r);if(op.id==='entropy'){raid.entropyV52=0;raid.entropyLootV52=0}if(op.id==='timefracture'){raid.timePhaseV52='NORMAL';raid.timeOverrideUntilV52=0;addUniquePropsV52('time_anchor',3,start,r)}if(op.id==='mirror'){addUniquePropsV52('mirror_gate',4,start,r);let gs=raid.props.filter(p=>p.type==='mirror_gate');for(let n=0;n<gs.length;n++)gs[n].pair=gs[(n+Math.floor(gs.length/2))%gs.length]?.index??0}if(op.id==='redshift')raid.redShiftIndexV52=0;if(op.id==='civilwar')initCivilWarV52(start,r);if(op.id==='void_root')initRootFloorV52(start,r)}
+function initCivilWarV52(start,r){let normals=raid.enemies.filter(e=>!e.elite);normals.forEach((e,n)=>{e.factionV52=n%2?'SECESSION':'LOYALIST';e.name=`${e.factionV52} // ${e.name}`;e.awake=true});let boss1=raid.enemies.find(e=>e.elite);if(boss1){boss1.factionV52='LOYALIST';boss1.name='LOYALIST COMMANDER // '+boss1.name}let occupied=new Set(raid.enemies.map(e=>keyXY(e.x,e.y))),c=safeRandomOpenV5(raid.map,r,start,occupied,12);if(c){let boss2=makeEnemy(c.x,c.y,true);boss2.factionV52='SECESSION';boss2.name='SECESSION COMMANDER // '+boss2.name;raid.enemies.push(boss2);raid.civilBossIdsV52=[boss1?.id,boss2.id].filter(Boolean);raid.eliteDead=false}}
+function initLongNightV52(op,r){let built=buildLongNightV52(r),start=nearestOpen(built,3,3),far=farthestCell(built,start);initializeNewFloorV5(op,built,start,far,r);raid.nightSignalsV52=0;raid.eliteDead=false;addUniquePropsV52('night_beacon',4,start,r);for(let e of raid.enemies)e.awake=false;raid.floorStyle='THE LONG NIGHT // OBJECTIVE FIELD';raid.objective=objectiveTextV4()}
+function initPredatorV52(op,r){let built=buildPredatorV52(r),start=nearestOpen(built,built.rooms?.[0]?.cx||3,built.rooms?.[0]?.cy||3),far=farthestCell(built,start);initializeNewFloorV5(op,built,start,far,r);let boss=raid.enemies.find(e=>e.elite),keep=boss?[boss]:[];let occupied=new Set(keep.map(e=>keyXY(e.x,e.y))),count=3+Math.min(4,raid.floor);for(let n=0;n<count;n++){let c=safeRandomOpenV5(raid.map,r,start,occupied,9);if(!c)continue;occupied.add(keyXY(c.x,c.y));let pool=ENEMY_TYPES.filter(x=>x.predator),base=deep(pick(pool,r)),e=makeEnemy(c.x,c.y,false);Object.assign(e,base);e.id=uid();e.x=c.x;e.y=c.y;e.maxHp=Math.round(base.hp*(1+raid.floor*.18)*1.25);e.hp=e.maxHp;e.damage=Math.round(base.damage*(1+raid.floor*.12)*1.20);e.armor=Math.round(base.armor*(1+raid.floor*.08));e.resist={fire:28,cold:28,shock:28,toxic:28,void:28};e.statuses=[];e.predator=true;e.awake=false;keep.push(e)}raid.enemies=keep;if(boss){boss.name='ALPHA RESERVE WARDEN // '+boss.name;boss.damage=Math.round(boss.damage*1.7);boss.maxHp=Math.round(boss.maxHp*1.65);boss.hp=boss.maxHp}raid.floorStyle='PREDATOR RESERVE';raid.objective=objectiveTextV4()}
+function initRootFloorV52(start,r){let pool=['entropy','time','redshift','mirror','hazard'],count=raid.floor>=8?5:raid.floor>=5?4:3,mods=[];while(mods.length<count){let m=pick(pool,r);if(!mods.includes(m))mods.push(m)}raid.rootMechanicsV52=mods;raid.entropyV52=0;raid.timePhaseV52='NORMAL';raid.redShiftIndexV52=0;if(mods.includes('time'))addUniquePropsV52('time_anchor',2,start,r);if(mods.includes('mirror'))addUniquePropsV52('mirror_gate',2,start,r);for(let e of raid.enemies){e.damage=Math.round(e.damage*1.35);e.maxHp=Math.round(e.maxHp*1.22);e.hp=e.maxHp;e.awake=true}raid.timeline.push({turn:raid.turns,text:`ROOT LAWS // ${mods.join(' + ').toUpperCase()}`,type:'bad'});raid.floorStyle=`VOID//ROOT // ${mods.join('+').toUpperCase()}`}
+
+// ---------- card-sector generation ----------
+const V52_BASE_INIT_TREASURE=initTreasureFloorV51;
+initTreasureFloorV51=function(op){
+ if(!['apex_reserve','creator_vault','warden_treasury','gem_sanctum'].includes(op.id))return V52_BASE_INIT_TREASURE(op);
+ let r=raid.rng,built=op.id==='creator_vault'?buildGrandChambersV43(r):op.id==='warden_treasury'?buildTransitV44(r,45,29):buildRallyWarehouseV5(r),start=nearestOpen(built,built.rooms?.[0]?.cx||3,built.rooms?.[0]?.cy||3);
+ raid.map={w:built.w,h:built.h,tiles:built.tiles,rooms:built.rooms||[],explored:Array.from({length:built.h},()=>Array(built.w).fill(false)),visible:Array.from({length:built.h},()=>Array(built.w).fill(false))};raid.enemies=[];raid.props=[];raid.ground={};raid.player.x=start.x;raid.player.y=start.y;raid.entrance={...start};raid.eliteDead=true;raid.layer='main';raid.props.push({type:'extract',x:start.x,y:start.y,active:true,icon:'◎'});let cells=openCells(raid.map).filter(c=>dist(c,start)>3);function spot(){if(!cells.length)return null;let ix=Math.floor(r()*cells.length);return cells.splice(ix,1)[0]}
+ if(op.id==='apex_reserve'){let count=Math.max(5,5+Math.floor(r()*16)),qs=[6,6,6];while(qs.length<count){let x=r();qs.push(x<.46?5:x<.88?6:7)}for(let q of qs){let c=spot();if(!c)break;raid.props.push({type:'locked_cache',x:c.x,y:c.y,locked:false,opened:false,looted:false,quality:q,icon:'▣',treasureV51:true})}raid.floorStyle='APEX RESERVE // Q5-Q7';raid.mission={name:'Apex Recovery',desc:'Recover premium Q5–Q7 cargo and extract.',progress:0,goal:1,completed:false,reward:{credits:0,xp:0}}}
+ if(op.id==='creator_vault'){for(let n=0;n<4;n++){let c=spot();if(c)raid.props.push({type:'locked_cache',x:c.x,y:c.y,locked:false,opened:false,looted:false,quality:7,icon:'▣',treasureV51:true})}let c1=spot()||start,c2=spot()||start;dropItem(c1.x,c1.y,makeEntryPassV51(pick(['rally_pass','apex_pass','yard_pass'],r)),false);dropItem(c2.x,c2.y,{id:uid(),name:'Letter from the Developers',type:'contraband',kind:'creator_letter',icon:'✉',qty:1,weight:.01,size:1,value:40000,rarity:7,level:1,desc:'Thanks for Playing, Game by Niko and ChatGPT'});raid.floorStyle="CREATOR'S VAULT // FOUR Q7";raid.mission={name:'Final Thank You',desc:'Recover the letter and raid four Q7 caches.',progress:0,goal:1,completed:false,reward:{credits:0,xp:0}}}
+ if(op.id==='warden_treasury'){let qs=[5,5,6,6,7,7],ordered=openCells(raid.map).filter(c=>dist(c,start)>4).sort((a,b)=>dist(a,start)-dist(b,start));for(let n=0;n<qs.length;n++){let idx=Math.min(ordered.length-1,Math.floor((n+1)*ordered.length/(qs.length+1))),c=ordered.splice(Math.max(0,idx),1)[0]||spot();if(c)raid.props.push({type:'locked_cache',x:c.x,y:c.y,locked:false,opened:false,looted:false,quality:qs[n],icon:'▣',treasureV51:true,treasuryStageV52:n+1,sealedV52:n>0})}for(let n=0;n<10;n++){let c=spot();if(c&&raid.map.tiles[c.y][c.x]==='.')raid.map.tiles[c.y][c.x]=n%2?'S':'V'}raid.treasuryPulseV52=0;raid.treasuryStageV52=0;raid.treasuryLockUntilV52=0;raid.floorStyle='WARDEN TREASURY // GREED PROTOCOL';raid.mission={name:'Greed Protocol',desc:'Open sequential premium chambers. Each deeper cache seals extraction during a harsher security challenge.',progress:0,goal:6,completed:false,reward:{credits:0,xp:0}}}
+ if(op.id==='gem_sanctum'){for(let n=0;n<12;n++){let c=spot();if(!c)break;let tier=n===0?7:n<3?6:n<7?5:Math.max(4,gemTierRollV3(profile.level+30,r));dropItem(c.x,c.y,makeGemV3(null,tier,1,r),false)}let altar=spot()||start;raid.props.push({type:'resonance_altar',x:altar.x,y:altar.y,icon:'💠',opened:false});let svc=[['gem_upgrade_altar','⬆'],['gem_cleanse_altar','✧'],['gem_refraction_altar','↻']];for(let [type,icon] of svc){let c=spot();if(c)raid.props.push({type,x:c.x,y:c.y,icon,opened:false})}for(let n=0;n<6;n++){let c=spot();if(c)dropItem(c.x,c.y,makeMaterial(pick(['prism','essence','catalyst'],r),2+Math.floor(r()*4)),false)}raid.floorStyle='GEMSTONE SANCTUM // RESONANCE SERVICES';raid.mission={name:'Resonance Harvest',desc:'Recover high-tier gems. Three unstable sanctum services can upgrade, cleanse or refract one carried gem each.',progress:0,goal:1,completed:false,reward:{credits:0,xp:0}}}
+ raid.scheduledEvents=[];raid.activeEvents=[];raid.objective='TREASURE SECTOR // EXTRACTION READY';raid.player.barrierNow=Math.max(raid.player.barrierNow||0,raid.player.barrier||0)
+};
+
+// Warden Treasury advances one chamber at a time. Greed temporarily locks extraction.
+const V52_BASE_OPEN_LOCKED_CONTAINER=openLockedContainerV4;
+openLockedContainerV4=function(prop){
+ if(raid?.operation?.id==='warden_treasury'&&prop?.treasuryStageV52&&prop.sealedV52)return toast(`Treasury chamber ${prop.treasuryStageV52} remains sealed. Open the previous chamber first.`,'bad');
+ let wasTreasury=raid?.operation?.id==='warden_treasury'&&prop?.treasuryStageV52&&!prop.looted,stage=prop?.treasuryStageV52||0;
+ let out=V52_BASE_OPEN_LOCKED_CONTAINER(prop);
+ if(wasTreasury&&prop.looted){raid.treasuryStageV52=Math.max(raid.treasuryStageV52||0,stage);raid.mission.progress=raid.treasuryStageV52;raid.mission.completed=raid.treasuryStageV52>=6;let next=raid.props.find(p=>p.treasuryStageV52===stage+1);if(next)next.sealedV52=false;raid.treasuryLockUntilV52=raid.turns+2+Math.min(5,stage);let ex=raid.props.find(p=>p.type==='extract');if(ex)ex.active=false;raid.treasuryPulseV52=Math.max(raid.treasuryPulseV52||0,stage);logMsg(`TREASURY CHAMBER ${stage}/6 // extraction sealed for ${raid.treasuryLockUntilV52-raid.turns} turns.`,stage>=5?'bad':'warn')}
+ return out
+};
+function consumeOneBagGemV52(g){if(!g)return null;let copy=deep(g);copy.id=uid();copy.qty=1;g.qty=(g.qty||1)-1;if(g.qty<=0)raid.player.bag=raid.player.bag.filter(x=>x.id!==g.id);return copy}
+function returnServicedGemV52(g){normalizeItem(g);mergeInto(raid.player.bag,g)}
+function gemServiceCandidatesV52(type){let gems=(raid?.player?.bag||[]).filter(i=>i.type==='gem');if(type==='upgrade')return gems.filter(g=>(g.gemTier||1)<7);if(type==='cleanse')return gems.filter(g=>(g.gemFlaws||[]).length);if(type==='refraction')return gems.filter(g=>(g.gemTier||1)>=5);return []}
+function useGemServiceV52(prop,type,gemId){let g=raid.player.bag.find(i=>i.id===gemId&&i.type==='gem');if(!g||prop.opened)return toast('Gem or service is no longer available','bad');let tier=g.gemTier||1,success=type==='upgrade'?clamp(.82-(tier-4)*.12,.42,.82):type==='cleanse'?.82:.72,copy=consumeOneBagGemV52(g);commitTurn(()=>{prop.opened=true;if(chance(success,raid.rng)){if(type==='upgrade'){let ng=makeGemV3(copy.gemId,Math.min(7,tier+1),1,raid.rng);ng.gemFlaws=deep(copy.gemFlaws||[]);ng.gemBonuses=[...new Set([...(copy.gemBonuses||[]),...(ng.gemBonuses||[])])];returnServicedGemV52(ng);logMsg(`SANCTUM ASCENSION // ${copy.name} upgraded to T${ng.gemTier}.`,'good')}else if(type==='cleanse'){copy.gemFlaws=deep(copy.gemFlaws||[]);copy.gemFlaws.splice(Math.floor(raid.rng()*copy.gemFlaws.length),1);returnServicedGemV52(copy);logMsg('SANCTUM CLEANSE // one negative gem flaw removed.','good')}else{copy.gemBonuses=rollGemBonusesV51(copy,raid.rng);returnServicedGemV52(copy);logMsg(`SANCTUM REFRACTION // bonus facets rerolled (${copy.gemBonuses.length}).`,'good')}}else logMsg(`SANCTUM FAILURE // ${copy.name} destabilized and was destroyed.`,'bad')});closeModal();updateRaidUI()}
+function gemServiceModalV52(prop,type){let labels={upgrade:['ASCENSION ALTAR','Raise one carried gem by one tier. Failure destroys that gem unit.'],cleanse:['PURITY ALTAR','Remove one negative flaw. Failure destroys that gem unit.'],refraction:['REFRACTION ALTAR','Reroll bonus facets on a T5+ gem. Failure destroys that gem unit.']},[title,desc]=labels[type],list=gemServiceCandidatesV52(type);openModal(`<div class="modalhead"><div><h2>${title}</h2><div class="muted">ONE USE // UNSTABLE SERVICE</div></div><button class="close" data-close>✕</button></div><div class="card"><p>${desc}</p><p class="warn">This altar is consumed whether the procedure succeeds or fails.</p></div><div class="grid">${list.map(g=>{let t=g.gemTier||1,ch=type==='upgrade'?clamp(.82-(t-4)*.12,.42,.82):type==='cleanse'?.82:.72;return itemCard(g,`<button class="btn small danger gem-service-v52" data-id="${g.id}">ATTEMPT ${Math.round(ch*100)}%</button>`)}).join('')||'<div class="card empty">NO COMPATIBLE CARRIED GEMS</div>'}</div>`);$$('.gem-service-v52').forEach(b=>b.onclick=()=>confirmModal('Commit gem to unstable service?',desc,()=>useGemServiceV52(prop,type,b.dataset.id)))}
+
+// ---------- main generation hook ----------
+const V52_BASE_GENERATE_FLOOR=generateFloor;
+generateFloor=function(){let op=raid?.operation,id=op?.id,r=raid?.rng;if(id==='hollow'){let built=buildHollowCityV52(r);initOperationFromBuiltV52(op,built,r);raid.floorStyle='HOLLOW CITY // URBAN DISTRICT';return}if(['entropy','timefracture','mirror','redshift','civilwar','void_root'].includes(id)){let built=id==='mirror'?buildMirrorV52(r):id==='void_root'?buildRootV52(r):id==='entropy'?buildTransitV44(r,43,29):id==='timefracture'?buildClassic(r,43,29):id==='redshift'?buildGrandV44(r,43,29):buildGrandChambersV43(r);initAnomalyV52(op,built,r);return}if(id==='longnight')return initLongNightV52(op,r);if(id==='predator')return initPredatorV52(op,r);if(['warden_treasury','gem_sanctum'].includes(id))return initTreasureFloorV51(op);return V52_BASE_GENERATE_FLOOR()};
+
+// ---------- turn mechanics ----------
+function safeMutationCellsV52(){let bad=new Set([keyXY(raid.player.x,raid.player.y),...(raid.props||[]).map(p=>keyXY(p.x,p.y)),...(raid.enemies||[]).filter(e=>e.hp>0).map(e=>keyXY(e.x,e.y))]);return openCells(raid.map).filter(c=>!bad.has(keyXY(c.x,c.y))&&dist(c,raid.player)>2)}
+function entropyTickV52(mult=1){raid.entropyV52=(raid.entropyV52||0)+1;let cells=safeMutationCellsV52(),n=Math.min(cells.length,Math.ceil((2+raid.entropyV52*.7)*mult));for(let k=0;k<n;k++){let c=pick(cells,raid.rng);if(!c)continue;raid.map.tiles[c.y][c.x]=pick(['F','S','V','T'],raid.rng)}let walls=[];for(let y=1;y<raid.map.h-1;y++)for(let x=1;x<raid.map.w-1;x++)if(raid.map.tiles[y][x]==='#'&&[raid.map.tiles[y][x-1],raid.map.tiles[y][x+1],raid.map.tiles[y-1][x],raid.map.tiles[y+1][x]].filter(t=>t!== '#').length>=2)walls.push({x,y});for(let n2=0;n2<Math.min(1+Math.floor(raid.entropyV52/3),walls.length);n2++){let w=pick(walls,raid.rng);raid.map.tiles[w.y][w.x]='.'}raid.entropyLootV52=Math.min(.35,(raid.entropyV52||0)*.025);logMsg(`ENTROPY ${raid.entropyV52} // geometry ruptures, loot resonance +${Math.round(raid.entropyLootV52*100)}%.`,'warn')}
+const REDSHIFT_TYPES_V52=['kinetic','fire','cold','shock','toxic','void'];
+function shiftedTypeV52(type,steps){let n=REDSHIFT_TYPES_V52.indexOf(type);return n<0?type:REDSHIFT_TYPES_V52[(n+steps)%REDSHIFT_TYPES_V52.length]}
+function timePhaseV52(){if(raid.turns<(raid.timeOverrideUntilV52||0))return 'SLOW';return ['NORMAL','FAST','SLOW','FROZEN'][Math.floor(raid.turns/5)%4]}
+const V52_BASE_OPERATION_TURN=operationTurnEffectsV4;
+operationTurnEffectsV4=function(){V52_BASE_OPERATION_TURN();if(!raid?.active)return;let id=raid.operation?.id,root=raid.rootMechanicsV52||[];
+ if(id==='entropy'||root.includes('entropy'))if(raid.turns%4===0)entropyTickV52(id==='void_root'?1.4:1);
+ if(id==='timefracture'||root.includes('time')){let ph=timePhaseV52();if(ph!==raid.timePhaseV52){raid.timePhaseV52=ph;logMsg(`TIME FIELD // ${ph}`,ph==='FAST'?'bad':ph==='SLOW'?'good':'warn')}if(ph==='FAST'&&raid.turns%2===0&&raid.player.hp>0){let resist=clamp((effects().temporal||0)*.18,0,.72);if(chance(1-resist,raid.rng))enemyTurn();else{raid.player.energy=Math.min(raid.player.maxEnergy,raid.player.energy+4*(effects().temporal||0));logMsg('Temporal Discipline stabilizes the fast-cycle window.','good')}}if(ph==='FROZEN'&&raid.turns%5===0)for(let e of raid.enemies.filter(e=>e.hp>0&&raid.map.visible[e.y]?.[e.x]))addStatus(e,'stun',1,1)}
+ if(id==='mirror'||root.includes('mirror'))if(raid.turns%7===0){let live=raid.enemies.filter(e=>e.hp>0&&!e.elite);if(live.length<28&&live.length){let src=pick(live,raid.rng),mx=raid.map.w-1-src.x,c=nearestOpen(raid.map,mx,src.y);if(c&&!enemyAt(c.x,c.y)){let e=deep(src);e.id=uid();e.x=c.x;e.y=c.y;e.name='REFLECTION // '+src.name;e.hp=Math.max(1,Math.round(src.hp*.65));e.maxHp=e.hp;e.damage=Math.round(src.damage*.85);e.elite=false;e.awake=true;raid.enemies.push(e);logMsg('MIRROR EVENT // hostile reflection materialized.','bad')}}}
+ if(id==='redshift'||root.includes('redshift'))if(raid.turns%6===0){raid.redShiftIndexV52=((raid.redShiftIndexV52||0)+1)%REDSHIFT_TYPES_V52.length;logMsg(`RED SHIFT // spectrum +${raid.redShiftIndexV52}: ${REDSHIFT_TYPES_V52.map(t=>DT[shiftedTypeV52(t,raid.redShiftIndexV52)]?.name).join(' / ')}`,'warn')}
+ if(id==='longnight'){if(raid.turns%8===0){raid.nightDepthV52=(raid.nightDepthV52||0)+1;for(let e of raid.enemies)e.awake=true;logMsg(`NIGHT DEEPENS // visibility pressure ${raid.nightDepthV52}.`,'bad')}if(raid.turns%12===0&&raid.enemies.filter(e=>e.hp>0).length<30){let c=safeRandomOpenV5(raid.map,raid.rng,raid.player,new Set(),10);if(c){let e=makeEnemy(c.x,c.y,false);e.name='NIGHT EMERGENCE // '+e.name;e.awake=true;raid.enemies.push(e)}}}
+ if(id==='predator'&&raid.turns%6===0){for(let e of raid.enemies.filter(e=>e.predator))e.awake=true;logMsg('SCENT PULSE // every predator has your trail.','bad')}
+ if(id==='warden_treasury'){let ex=raid.props.find(p=>p.type==='extract');if(raid.turns<(raid.treasuryLockUntilV52||0)){if(ex)ex.active=false;if(raid.turns%2===0)environmentDamageV5(12+(raid.treasuryStageV52||0)*5,'shock','Treasury security pulse hits for')}else if(ex)ex.active=true}
+ if(id==='void_root'&&root.includes('hazard')&&raid.turns%3===0){let c=pick(safeMutationCellsV52(),raid.rng);if(c)raid.map.tiles[c.y][c.x]=pick(['F','C','S','T','V'],raid.rng)}
+};
+
+// ---------- combat anomaly modifiers ----------
+const V52_BASE_DEAL_DAMAGE=dealPlayerDamage;
+dealPlayerDamage=function(t,w){let ww=w;if(raid?.active){let id=raid.operation?.id,root=raid.rootMechanicsV52||[];if(id==='redshift'||root.includes('redshift'))ww={...w,damageType:shiftedTypeV52(w.damageType||'kinetic',raid.redShiftIndexV52||0)};let bonus=0;if(raid.operation.kind==='anomaly')bonus+=effects().anomalyDamage||0;if(id==='void_root')bonus+=effects().rootDamage||0;if((t.predator||t.specimen))bonus+=effects().predatorDamage||0;if(bonus)ww={...ww,damage:(ww.damage||1)*(1+bonus)}}return V52_BASE_DEAL_DAMAGE(t,ww)};
+const V52_BASE_ENEMY_ATTACK=enemyAttack;
+enemyAttack=function(e){if(!raid?.active)return V52_BASE_ENEMY_ATTACK(e);let id=raid.operation?.id,root=raid.rootMechanicsV52||[],old=e.type;if(id==='redshift'||root.includes('redshift'))e.type=shiftedTypeV52(old,raid.redShiftIndexV52||0);let out=V52_BASE_ENEMY_ATTACK(e);e.type=old;return out};
+
+// Civil-war AI: factions attack one another when a rival is the closest meaningful target.
+const V52_BASE_ENEMY_TURN=enemyTurn;
+function civilWarEnemyTurnV52(){let p=raid.player,alive=raid.enemies.filter(e=>e.hp>0);for(let e of alive){let skip=processStatuses(e);if(e.hp<=0){killEnemy(e);continue}if(skip)continue;let rivals=alive.filter(x=>x!==e&&x.hp>0&&x.factionV52&&e.factionV52&&x.factionV52!==e.factionV52),nearest=rivals.sort((a,b)=>dist(e,a)-dist(e,b))[0],target=nearest&&dist(e,nearest)<dist(e,p)+2?nearest:p,d=dist(e,target);e.awake=true;if(d<=1.5){if(target===p)enemyAttack(e);else{let dmg=Math.max(1,Math.round(e.damage*(.72+raid.rng()*.25)));target.hp-=dmg;floatAt(target.x,target.y,dmg,'#ffbd82');if(target.hp<=0)killEnemy(target)}}else if(e.ai==='ranged'&&d<=(e.range||6)&&lineOfSight(e.x,e.y,target.x,target.y)){if(target===p)enemyAttack(e);else{let dmg=Math.max(1,Math.round(e.damage*.72));target.hp-=dmg;floatAt(target.x,target.y,dmg,'#a8d8ff');if(target.hp<=0)killEnemy(target)}}else{let step=nextStep(e.x,e.y,target.x,target.y,e.id);if(step){e.x=step.x;e.y=step.y;stepHazard(e)}}if(p.hp<=0)return}}
+enemyTurn=function(){if(raid?.operation?.id==='civilwar')return civilWarEnemyTurnV52();return V52_BASE_ENEMY_TURN()};
+
+const V52_BASE_KILL_ENEMY=killEnemy;
+killEnemy=function(e){let wasElite=!!e?.elite,id=e?.id;V52_BASE_KILL_ENEMY(e);if(!raid?.active)return;if(raid.operation?.id==='civilwar'&&wasElite){let alive=(raid.civilBossIdsV52||[]).filter(x=>raid.enemies.some(q=>q.id===x&&q.hp>0));raid.eliteDead=alive.length===0;let st=raid.props.find(p=>p.type==='stairs');if(st)st.active=raid.eliteDead;if(!raid.eliteDead)logMsg('ONE COMMAND SIGNAL REMAINS.','warn')}
+ if(raid.operation?.id==='void_root'&&wasElite){let item=genItem(profile.level+raid.floor+25,null,8,raid.rng);dropItem(e.x,e.y,item);profile.records.rootforged=(profile.records.rootforged||0)+1;logMsg('ROOTFORGED SIGNATURE RECOVERED.','good')}
+};
+
+// ---------- interactions ----------
+const V52_BASE_PLAYER_INTERACT=playerInteract;
+playerInteract=function(){if(!raid?.active)return;let p=raid.player,prop=propAt(p.x,p.y);if(prop?.type==='time_anchor'){if(prop.opened)return toast('Temporal anchor exhausted');commitTurn(()=>{prop.opened=true;raid.timeOverrideUntilV52=raid.turns+5;raid.timePhaseV52='SLOW';p.energy=Math.min(p.maxEnergy,p.energy+20);logMsg('Temporal anchor forces a SLOW field for five turns.','good')});return}if(prop?.type==='mirror_gate'){let gates=raid.props.filter(x=>x.type==='mirror_gate'),other=gates.find(x=>x.index===prop.pair)||gates.find(x=>x!==prop);if(!other)return toast('Mirror pair unstable','bad');commitTurn(()=>{p.x=other.x;p.y=other.y;addStatus(p,'exposed',1,2);logMsg('Mirror transit completed.','warn')});return}if(prop?.type==='night_beacon'){if(prop.opened)return toast('Signal tower already active');commitTurn(()=>{prop.opened=true;raid.nightSignalsV52=(raid.nightSignalsV52||0)+1;for(let y=Math.max(0,p.y-8);y<=Math.min(raid.map.h-1,p.y+8);y++)for(let x=Math.max(0,p.x-8);x<=Math.min(raid.map.w-1,p.x+8);x++)raid.map.explored[y][x]=true;let ex=raid.props.find(q=>q.type==='extract');if(ex&&raid.nightSignalsV52>=4&&raid.eliteDead)ex.active=true;logMsg(`LONG NIGHT SIGNAL ${raid.nightSignalsV52}/4 ONLINE.`,'good')});return}if(prop?.type==='resonance_altar'){if(prop.opened)return toast('Resonance Altar exhausted');commitTurn(()=>{prop.opened=true;let tier=chance(.16,raid.rng)?7:chance(.45,raid.rng)?6:5;dropItem(p.x,p.y,makeGemV3(null,tier,1,raid.rng));dropItem(p.x,p.y,makeMaterial('prism',4+Math.floor(raid.rng()*4)));logMsg(`RESONANCE ALTAR // T${tier} gemstone formed.`,'good')});return}return V52_BASE_PLAYER_INTERACT()};
+
+// Long Night requires all signals plus Warden before extraction.
+const V52_BASE_OBJECTIVE=objectiveTextV4;
+objectiveTextV4=function(){if(!raid?.active)return '';let id=raid.operation?.id;if(id==='entropy')return `ENTROPY ${raid.entropyV52||0} · LOOT RESONANCE +${Math.round((raid.entropyLootV52||0)*100)}% · ${raid.eliteDead?'EXTRACT OR DESCEND':'WARDEN ACTIVE'}`;if(id==='timefracture')return `TIME ${timePhaseV52()} · ${raid.eliteDead?'EXTRACT OR DESCEND':'WARDEN ACTIVE'}`;if(id==='mirror')return `MIRROR COMPLEX · REFLECTION CYCLE ${raid.turns%7}/7 · ${raid.eliteDead?'EXTRACT OR DESCEND':'WARDEN ACTIVE'}`;if(id==='redshift')return `RED SHIFT +${raid.redShiftIndexV52||0} · ${raid.eliteDead?'EXTRACT OR DESCEND':'WARDEN ACTIVE'}`;if(id==='civilwar')return `CIVIL WAR · COMMANDERS ${(raid.civilBossIdsV52||[]).filter(x=>raid.enemies.some(e=>e.id===x&&e.hp>0)).length} ACTIVE`;if(id==='longnight')return `LONG NIGHT · SIGNALS ${raid.nightSignalsV52||0}/4 · ${raid.eliteDead?'WARDEN DOWN':'WARDEN ACTIVE'}`;if(id==='predator')return `PREDATOR RESERVE · ${raid.enemies.filter(e=>e.hp>0).length} HOSTILES · ${raid.eliteDead?'EXTRACT OR DESCEND':'ALPHA ACTIVE'}`;if(id==='void_root')return `ROOT F${raid.floor}/10 · ${(raid.rootMechanicsV52||[]).join(' + ').toUpperCase()} · ${raid.eliteDead?'EXTRACT OR DESCEND':'ROOT WARDEN ACTIVE'}`;if(id==='warden_treasury')return `WARDEN TREASURY · CHAMBERS ${raid.treasuryStageV52||0}/6 · ${raid.turns<(raid.treasuryLockUntilV52||0)?`SECURITY LOCK ${raid.treasuryLockUntilV52-raid.turns}T`:'EXTRACTION AVAILABLE'}`;if(id==='gem_sanctum')return `GEMSTONE SANCTUM · SERVICES ${raid.props.filter(p=>['gem_upgrade_altar','gem_cleanse_altar','gem_refraction_altar'].includes(p.type)&&!p.opened).length}/3 REMAIN · EXTRACTION READY`;return V52_BASE_OBJECTIVE()};
+
+// ---------- palette ----------
+const V52_BASE_PALETTE=floorPalette;
+floorPalette=function(){let p=V52_BASE_PALETTE(),id=raid?.operation?.id;if(id==='hollow')return {...p,'.':'#21181b','#':'#070406',F:'#7d2421',S:'#766b28',T:'#3b613b'};if(id==='entropy')return {...p,'.':'#241018','#':'#050104',F:'#8c241e',S:'#7b6630',V:'#6b255a',T:'#416139'};if(id==='timefracture')return {...p,'.':'#21192c','#':'#050307',C:'#355968',S:'#6d6331',V:'#654173'};if(id==='mirror')return {...p,'.':'#1b2230','#':'#030507',C:'#36586a',V:'#55426f'};if(id==='redshift')return {...p,'.':'#2b1415','#':'#060202',F:'#8b2b25',C:'#345c70',S:'#796a2c',T:'#3f683e',V:'#68406f'};if(id==='civilwar')return {...p,'.':'#271c16','#':'#060403',S:'#806f2c'};if(id==='longnight')return {...p,'.':'#10151e','#':'#020305',C:'#2c5262',V:'#3c315d'};if(id==='predator')return {...p,'.':'#191d13','#':'#030403',T:'#365d32',V:'#49325d',C:'#315463'};if(id==='warden_treasury')return {...p,'.':'#2d2418','#':'#060401',S:'#8d762a',V:'#67436f'};if(id==='gem_sanctum')return {...p,'.':'#291c30','#':'#050306'};if(id==='void_root')return {...p,'.':'#260711','#':'#020001',F:'#a4212a',C:'#315c72',S:'#8b6c22',T:'#356b3d',V:'#a02472'};return p};
+
+// ---------- FOV + minimap ----------
+const V52_BASE_UPDATE_FOV=updateFOV;
+updateFOV=function(){if(!raid?.active)return;let id=raid.operation?.id;if(id!=='longnight'){V52_BASE_UPDATE_FOV();if((effects().fovBonus||0)>0){let rad=7.4+(effects().fovBonus||0),m=raid.map,p=raid.player;for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(!m.visible[y][x]&&dist(p,{x,y})<=rad&&lineOfSight(p.x,p.y,x,y)){m.visible[y][x]=true;m.explored[y][x]=true}}return}let m=raid.map,p=raid.player,rad=Math.max(2.8,4.8+(effects().fovBonus||0)+(raid.nightSignalsV52||0)*.45-(raid.nightDepthV52||0)*.18);for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++){let vis=dist(p,{x,y})<=rad&&lineOfSight(p.x,p.y,x,y);m.visible[y][x]=vis;if(vis)m.explored[y][x]=true}};
+function ensureMinimapV52(){let wrap=$('#canvasWrap');if(!wrap)return;let enabled=profile?.settings?.minimap!==false,el=$('#minimapV52');if(!enabled){el?.remove();return}if(!el){el=document.createElement('div');el.id='minimapV52';el.className='minimap-v52';el.innerHTML='<canvas id="minimapCanvasV52" width="420" height="280"></canvas>';el.onclick=()=>{el.classList.toggle('expanded');drawMinimapV52()};wrap.appendChild(el)}drawMinimapV52()}
+function drawMinimapV52(){let c=$('#minimapCanvasV52');if(!c||!raid?.map)return;let box=c.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1),w=Math.max(180,Math.round(box.width*dpr)),h=Math.max(120,Math.round(box.height*dpr));if(c.width!==w)c.width=w;if(c.height!==h)c.height=h;let ctx=c.getContext('2d'),m=raid.map,s=Math.min((w-8)/m.w,(h-8)/m.h),ox=(w-m.w*s)/2,oy=(h-m.h*s)/2;ctx.clearRect(0,0,w,h);ctx.fillStyle='#050204';ctx.fillRect(0,0,w,h);for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++){if(!m.explored[y]?.[x])continue;let t=m.tiles[y][x];if(t==='#')continue;ctx.fillStyle='#5f4249';ctx.fillRect(ox+x*s,oy+y*s,Math.max(1,s),Math.max(1,s))}for(let p of raid.props||[]){if(!['extract','stairs'].includes(p.type)||!m.explored[p.y]?.[p.x])continue;ctx.fillStyle=p.type==='extract'?'#ff334d':'#d99cff';ctx.fillRect(ox+p.x*s,oy+p.y*s,Math.max(2,s*1.8),Math.max(2,s*1.8))}ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ox+(raid.player.x+.5)*s,oy+(raid.player.y+.5)*s,Math.max(2,s*.8),0,Math.PI*2);ctx.fill()}
+const V52_BASE_UPDATE_UI=updateRaidUI;
+updateRaidUI=function(){V52_BASE_UPDATE_UI();if(raid?.active)ensureMinimapV52()};
+
+// ---------- record toggle ----------
+const V52_BASE_RENDER_RECORDS=renderRecords;
+renderRecords=function(){V52_BASE_RENDER_RECORDS();let settingsHeader=[...$$('.sectiontitle h2')].find(h=>h.textContent.trim()==='SETTINGS')?.closest('.sectiontitle');if(!settingsHeader)return;settingsHeader.insertAdjacentHTML('beforebegin',`<div class="sectiontitle"><h2>RAID INTERFACE</h2></div><div class="card spread"><div><b>MINIMAP</b><div class="muted">Shows explored walkable corridors plus extraction/stairs. Tap the minimap during a raid to expand it across the tactical view.</div></div><button id="minimapToggleV52" class="toggle ${profile.settings.minimap!==false?'on':''}"><i></i></button></div>`);$('#minimapToggleV52').onclick=()=>{profile.settings.minimap=profile.settings.minimap===false;save();renderRecords();toast(`Minimap ${profile.settings.minimap===false?'disabled':'enabled'}`,'good')}};
+
+// ---------- ROOT completion protocol ----------
+function rootProtocolTargetsV52(){return allOperationsV44().filter(o=>!['custom','preset'].includes(o.kind)&&o.id!=='void_root').filter((o,n,a)=>a.findIndex(x=>x.id===o.id)===n).map(o=>({id:o.id,name:o.name,icon:o.icon,operationId:o.operationId,maxFloor:o.maxFloor,kind:o.kind,goal:o.kind==='endless'?'Extract from wave 25+':Number.isFinite(o.maxFloor)&&o.maxFloor>1?`Extract from floor ${o.maxFloor}`:'Extract successfully'}))}
+function rootProtocolCompleteV52(){let p=profile.rootProtocolV52?.extracted||{};return rootProtocolTargetsV52().every(t=>!!p[t.id])}
+function rootProtocolProgressV52(){let t=rootProtocolTargetsV52(),p=profile.rootProtocolV52?.extracted||{};return {done:t.filter(x=>p[x.id]).length,total:t.length}}
+function markRootProtocolV52(snapshot){if(!snapshot?.success)return;let t=rootProtocolTargetsV52().find(x=>x.id===snapshot.id);if(!t)return;let ok=t.kind==='endless'?(snapshot.wave||0)>=25:!Number.isFinite(t.maxFloor)||t.maxFloor<=1||(snapshot.floor||0)>=t.maxFloor;if(ok){profile.rootProtocolV52.extracted[t.id]=true;if(rootProtocolCompleteV52())profile.rootProtocolV52.unlocked=true}}
+const V52_BASE_RENDER_CONTRACTS=renderContracts;
+renderContracts=function(){V52_BASE_RENDER_CONTRACTS();let main=$('#main'),targets=rootProtocolTargetsV52(),prog=rootProtocolProgressV52(),done=rootProtocolCompleteV52(),rows=targets.map(t=>`<div class="root-sub-v52"><div><b>${t.icon} ${t.name}</b><div class="muted">${t.goal}</div></div><b class="${profile.rootProtocolV52.extracted[t.id]?'good':'muted'}">${profile.rootProtocolV52.extracted[t.id]?'✓ COMPLETE':'○ PENDING'}</b></div>`).join('');main.insertAdjacentHTML('afterbegin',`<div class="sectiontitle"><h2>PERMANENT CONTRACT // ROOT ACCESS</h2><small>${prog.done}/${prog.total}</small></div><div class="card root-contract-v52 ${done?'complete':''}"><div class="spread"><div><b>${done?'VOID//ROOT ACCESS GRANTED':'EXTRACTION COMPLETION PROTOCOL'}</b><p class="muted">Successfully extract from every built-in operation. Multi-floor sectors require extraction from their deepest floor; Endless Breach requires a wave-25+ extraction. Card sectors count on any successful extraction. Custom/preset maps are excluded.</p></div><b class="${done?'good':'warn'}">${done?'UNLOCKED':`${prog.done}/${prog.total}`}</b></div><div class="bar"><i style="width:${prog.total?prog.done/prog.total*100:0}%"></i></div><div style="margin-top:10px">${rows}</div></div>`) };
+
+// ---------- auto-remove depleted protected keys after raids + protocol tracking ----------
+const V52_BASE_END_RAID=endRaid;
+endRaid=function(success,reason='KIA'){let snap=raid?.active?{success,id:raid.operation?.id,kind:raid.operation?.kind,floor:raid.floor,wave:raid.wave}:null,out=V52_BASE_END_RAID(success,reason);if(snap){markRootProtocolV52(snap);let depleted=(profile.keyring||[]).filter(k=>(k.keyUses||0)<=0);if(depleted.length){profile.keyring=profile.keyring.filter(k=>(k.keyUses||0)>0);for(let k of depleted)mergeInto(profile.stash,k);toast(`${depleted.length} depleted key${depleted.length===1?'':'s'} auto-unequipped`,'warn')}save()}return out};
+
+// ---------- operation passes / trader ----------
+const V52_BASE_MAKE_SHOP=makeShop;
+makeShop=function(){let s=V52_BASE_MAKE_SHOP(),r=seeded(dailySeed()+0x520052+(profile?.trader?.rerolls||0)*2017);if(r()<.0016)s.push(makeEntryPassV51('treasury_pass'));if(r()<.0011)s.push(makeEntryPassV51('sanctum_pass'));return s};
+const V52_BASE_BLACK_MARKET=makeBlackMarketV4;
+makeBlackMarketV4=function(){let s=V52_BASE_BLACK_MARKET(),r=seeded(dailySeed()+0x52B1AC+(profile?.blackMarket?.rerolls||0)*3037);if(r()<.010)s.push(makeEntryPassV51('treasury_pass'));if(r()<.008)s.push(makeEntryPassV51('sanctum_pass'));return s};
+
+// ---------- deployment requirement and grouped selector ----------
+const V52_BASE_DEPLOY_REQUIREMENT=deploymentRequirementV5;
+deploymentRequirementV5=function(op){if(op?.id==='void_root'&&!devFreeV43()&&!rootProtocolCompleteV52())return `VOID//ROOT is locked. Complete the permanent ROOT extraction protocol (${rootProtocolProgressV52().done}/${rootProtocolProgressV52().total}).`;return V52_BASE_DEPLOY_REQUIREMENT(op)};
+deployModal=function(){let all=allOperationsV44(),standard=all.filter(o=>o.kind==='standard').sort((a,b)=>(a.threat||0)-(b.threat||0)),root=all.filter(o=>o.id==='void_root'),anomaly=all.filter(o=>o.kind==='anomaly'&&o.id!=='void_root').sort((a,b)=>(a.threat||0)-(b.threat||0)),treasure=all.filter(o=>['rally','treasure'].includes(o.kind)).sort((a,b)=>(ENTRY_PASS_DEFS_V51[passKindForOperationV51(a.id)]?.value||0)-(ENTRY_PASS_DEFS_V51[passKindForOperationV51(b.id)]?.value||0)),preset=all.filter(o=>o.kind==='preset'),custom=all.filter(o=>o.kind==='custom'),special=all.filter(o=>!['standard','anomaly','custom','preset','rally','treasure'].includes(o.kind)).sort((a,b)=>{let av=a.kind==='endless'?3.6:(a.threat||0),bv=b.kind==='endless'?3.6:(b.threat||0);return av-bv}),cards=list=>operationCardsV44(list);openModal(`<div class="modalhead"><div><h2>SELECT OPERATION</h2><div class="muted">Built-in combat operations are grouped by ruleset and sorted by threat.</div></div><button class="close" data-close>✕</button></div><div class="sectiontitle"><h2>STANDARD EXPEDITIONS</h2><small>${standard.length}</small></div><div class="operation-grid">${cards(standard)}</div><div class="sectiontitle"><h2>SPECIAL OPERATIONS</h2><small>${special.length}</small></div><div class="operation-grid">${cards(special)}</div><div class="sectiontitle"><h2>ANOMALY SECTORS</h2><small>${anomaly.length} rule-breaking operations</small></div><div class="operation-grid">${cards(anomaly)}</div><div class="sectiontitle"><h2>CARD ENTRANCE</h2><small>${treasure.length} authorization sectors</small></div><div class="operation-grid">${cards(treasure)}</div>${preset.length?`<div class="sectiontitle"><h2>CODE PRESET MAPS</h2></div><div class="operation-grid">${cards(preset)}</div>`:''}${custom.length?`<div class="sectiontitle"><h2>IMPORTED CUSTOM SECTORS</h2></div><div class="operation-grid">${cards(custom)}</div>`:''}<div class="sectiontitle"><h2>ENDGAME // VOID ROOT</h2><small>${rootProtocolCompleteV52()?'UNLOCKED':`${rootProtocolProgressV52().done}/${rootProtocolProgressV52().total} PROTOCOL`}</small></div><div class="operation-grid">${cards(root)}</div>`);$$('.choose-operation').forEach(b=>b.onclick=()=>{profile.selectedOperation=b.dataset.operation;let op=resolveOperationV4(b.dataset.operation);if(op.kind==='standard')profile.selectedDungeon=op.id;save();closeModal();renderHome();toast(`${op.name} selected. Press DEPLOY when ready.`,'good')})};
+
+// ---------- premium card loot / item value adjustments ----------
+const V52_BASE_SELL_VALUE=sellValue;
+sellValue=function(i){let v=V52_BASE_SELL_VALUE(i);if((i?.rarity||0)>=6)v=Math.round(v*(1+(effects().appraisal||0)));return v};
+
+const V52_RECORDS_ROOT_BASE=renderRecords;
+renderRecords=function(){V52_RECORDS_ROOT_BASE();let recTitle=[...$$('.sectiontitle h2')].find(h=>h.textContent.trim()==='OPERATOR RECORD')?.closest('.sectiontitle'),grid=recTitle?.nextElementSibling;if(grid&&!$('#rootRecordV52'))grid.insertAdjacentHTML('beforeend',`<div id="rootRecordV52" class="card statbox rarity-8"><small>ROOTFORGED LOOT</small><b>${profile.records.rootforged||0}</b></div>`)};
+
+// ---------- minimap-safe new environmental damage reduction ----------
+const V52_BASE_ENV_DAMAGE=environmentDamageV5;
+environmentDamageV5=function(raw,type,label){let red=effects().hazardReduction||0;if(type==='void'&&(raid?.operation?.id==='entropy'||raid?.operation?.id==='void_root'))red=1-(1-red)*(1-(effects().entropyReduction||0));return V52_BASE_ENV_DAMAGE(raw*(1-clamp(red,0,.72)),type,label)};
+
+// ---------- interaction/extraction guards for Long Night ----------
+const V52_LONGNIGHT_INTERACT_BASE=playerInteract;
+playerInteract=function(){if(raid?.active){let prop=propAt(raid.player.x,raid.player.y),id=raid.operation?.id;if(id==='longnight'&&prop?.type==='extract'&&((raid.nightSignalsV52||0)<4||!raid.eliteDead))return toast(`Long Night extraction locked: signals ${raid.nightSignalsV52||0}/4${raid.eliteDead?'':' · Warden active'}`,'bad');if(id==='warden_treasury'){if(prop?.type==='extract'&&raid.turns<(raid.treasuryLockUntilV52||0))return toast(`Security lockdown: survive ${raid.treasuryLockUntilV52-raid.turns} more turns`,'bad');if(prop?.treasuryStageV52&&prop.sealedV52)return toast(`Chamber ${prop.treasuryStageV52} is sealed until the previous treasury cache is opened.`,'bad')}if(id==='gem_sanctum'&&prop&&!prop.opened){if(prop.type==='gem_upgrade_altar')return gemServiceModalV52(prop,'upgrade');if(prop.type==='gem_cleanse_altar')return gemServiceModalV52(prop,'cleanse');if(prop.type==='gem_refraction_altar')return gemServiceModalV52(prop,'refraction')}}return V52_LONGNIGHT_INTERACT_BASE()};
+
+// ---------- save migration ----------
+const V52_BASE_MIGRATE=migrate;
+migrate=function(){V52_BASE_MIGRATE();profile.version=Math.max(Number(profile.version)||1,V52_VERSION);profile.settings||={};profile.settings.minimap??=true;profile.rootProtocolV52||={extracted:{},unlocked:false};profile.rootProtocolV52.extracted||={};profile.records.rootforged??=0;for(let i of [...(profile.stash||[]),...(profile.pack||[]),...Object.values(profile.loadout||{}),...(profile.keyring||[])])if(i)normalizeItem(i)};
+
+// ---------- manual ----------
+const V52_BASE_MANUAL=manualModal;
+manualModal=function(){let points=[
+ ['1 // PREPARE','Equip gear, socket gems, carry matching ammunition/consumables and move exact-quality keys into the protected keyring.'],
+ ['2 // SKILLS','Levels now award 3 skill points. The Skills screen can reset all skill ranks for ¤2,000 while keeping mastery/Legacy progression.'],
+ ['3 // MINIMAP','Enable the minimap in Records. It shows explored corridors, your position, extraction and descent stairs only; tap it to expand.'],
+ ['4 // STANDARD','Standard expeditions remain the core multi-floor progression. Hollow City adds a massive urban ten-floor campaign.'],
+ ['5 // SPECIAL','Special operations change environment rules without necessarily rewriting the entire run structure. Predator Reserve is an extreme example.'],
+ ['6 // ANOMALIES','Anomaly sectors break normal rules: entropy, time, reflections, damage spectra, faction warfare, objective-night maps and Paradox realities.'],
+ ['7 // CARD ENTRANCE','Authorization sectors consume serialized passes and focus on unusual treasure structures rather than standard combat progression.'],
+ ['8 // ROOT CONTRACT','Contracts contains a permanent extraction checklist. Finish every built-in operation requirement to unlock VOID//ROOT. Endless requires wave 25+.'],
+ ['9 // VOID//ROOT','ROOT combines multiple anomaly mechanics each floor. All generated equipment there is exclusive ROOTFORGED quality, approximately twice Ascendant scaling.'],
+ ['10 // KEYS','Q3+ security cannot be brute-forced. Exact key quality is mandatory. Depleted keys auto-return from the protected keyring after the raid.'],
+ ['11 // ADVANCED MEDICINE','High-end medkits, barrier cells, stasis, cloak, recall and other consumables are available through loot and new Workshop recipes.'],
+ ['12 // EXTRACTION','Harder sectors require longer extraction channels. One-floor card sectors remain quick to exit once you reach their extraction point.']
+ ];openModal(`<div class="modalhead"><div><h2>FIELD MANUAL v5.2</h2><div class="muted">Anomaly Protocol</div></div><button class="close" data-close>✕</button></div><div class="stack">${points.map(([h,p])=>`<div class="card"><b>${h}</b><p class="muted">${p}</p></div>`).join('')}</div>`)};
+
+/* ======================= END VOID EXTRACTOR v5.2 ======================= */
+
+
+
+
+
+
+
 boot();
 </script>
 </body>
