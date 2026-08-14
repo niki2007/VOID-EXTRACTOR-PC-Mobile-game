@@ -471,89 +471,1158 @@ This made it easier to test late-game equipment and systems.
 
 ---
 
-# 6. Representative prompt history
+## Phase 8 — Advanced optional rooms and procedural architecture
 
-The following are shortened excerpts from the actual development conversation. They show how the game evolved through direction and feedback rather than through a fixed design document.
+After the game had accumulated many sectors, Niko started focusing on the quality of procedural spaces rather than only adding new enemy or loot types.
 
-## Initial game request
+A representative prompt was:
 
-> “Fully working RPG with procedural dungeons… random stats to items, many damage types and armor, inventory systems… extraction shooter-like… rarities… make something very complex, but think about every feature so everything works and fits together.”
+> “Rooms that are locked sometimes have entrance from the side so you don't even need a key for them… make them have multiple locked chests possible like 1–4… different shapes… rooms that you get teleported to with stairs should be more complex too… both should generate 0–2 times.”
 
-## First major expansion
+This phase substantially reworked optional spaces.
 
-> “Add more dungeon levels to 10… more rarities, more items, more descriptions… different dungeon generation… random daily quests… reroll trader… more crafting… different types of dungeons… red-to-black mode.”
+### Sealed vaults
 
-## Gemforge request
+Locked rooms were changed so that:
 
-> “Add a gem system where you can put gems on weapons and armor… each weapon has a chance to get a slot… at least 20 different gems… weapon mastery… prestige… more perks… more skills… negative effects on lower rarity items.”
+- The lock controls the only valid entrance.
+- Side walls cannot accidentally connect to ordinary corridors.
+- Vaults can have several different shapes.
+- Multiple locked containers can appear.
+- Keys are no longer guaranteed inside them.
+- Vault generation can occur zero, one, or two times per floor.
+- Optional vaults are kept away from mandatory Warden/stair routes.
 
-## Special-operation request
+### Vertical annexes
 
-> “Add special dungeon variants that can be chosen, like Fire dungeon or Ice dungeon, that have specific generation and enemies and dangers.”
+The stair/teleport side-room system was also expanded:
 
-## Access-system request
+- Different annex shapes
+- One or two guards
+- One or two loot caches
+- Rare themed hazards
+- Utility terminals
+- More varied internal layouts
+- Zero-to-two annexes per floor
 
-> “Implement random locked doors that need some key quality, similar to Arena Breakout or Escape from Tarkov, and some containers locked too.”
+A bug was found during testing where elemental annex tiles were accidentally considered valid ordinary enemy spawn terrain. The spawn logic was changed so main-floor enemies, Wardens, reinforcements, and bounties explicitly ignore annex cells.
 
-## Endless-mode request
+### Rare architecture rolls
 
-> “Like one infinite floor… the enemies usually chase the player after spawning.”
+Normal procedural generation gained a chance to use unusual floor structures such as:
 
-## Gem crash report
+- Grand Chambers
+- Transit Grid
+- Sealed Treasury
+- Vertical Nexus
+- Silent Salvage
+- Hazard Lattice
 
-> “When I put a gem on anything and try to play, it doesn’t work. When I click deploy, it just puts me back to menu.”
-
-## Gem-navigation report
-
-> “When I click Socket on gem, put the gem on a weapon, then try to close the gem menu, it says Gem stack no longer exists.”
-
-## Balance and interaction feedback
-
-> “Even on Ashen Foundry the things I find are Epic and Relic quality… rarities should be limited or made rarer… selecting an operation should not deploy immediately.”
-
-## PC/mobile usability request
-
-> “Make it say small text next to the buttons that tells me how to control it on PC… add two more Standard Expeditions… add DEV mode… descriptions in Workshop… extend the Field Manual.”
-
-These prompts were often informal and incomplete. Part of the AI’s task was interpreting the design goal, resolving dependencies, and fitting additions into the existing architecture.
+The design goal was to make repeated deployments less predictable without requiring every map to be handcrafted.
 
 ---
 
-# 7. Technical approach
+## Phase 9 — Sector Forge and procedural content editing
 
-## Single-file architecture
+Niko then asked an important question:
 
-The entire application is stored in one HTML file containing:
+> “Could we do a generation editor after? So I could import my own generations and I will have an editor to look at the map and change things like chances and stuff so I could add my deployments? All procedural of course.”
 
-- HTML interface structure
-- CSS styling and responsive layouts
-- JavaScript game logic
+This led to **VOID Sector Forge**, a separate offline HTML tool.
+
+The first editor supported:
+
+- Live seeded map preview
+- Floor selection
+- Sector metadata
+- Hazard and enemy density
+- Vault/annex ranges
+- Generation algorithm weights
+- Room templates
+- Validation
+- Stress generation
+- JSON export/import
+- Game-side custom sector importing
+
+The editor was deliberately based on a versioned JSON schema rather than hardcoded maps. The idea was that custom operations should still be procedural.
+
+### Sector Forge v2
+
+Niko later requested a much more usable desktop layout:
+
+> “I would like the Live Preview to always be on the right side of the screen… descriptions on most things that are adjustable… add my own things like Maze or Classic or Transit… import from the 11 existing sectors so I can adjust settings based on what they have and learn.”
+
+The editor was expanded with:
+
+- Persistent right-side live preview
+- Contextual hover help
+- Editable generator profiles
+- Classic, Cave, Maze, Arena, Grand Chambers and Transit generator families
+- Custom generator duplication/renaming
+- Generator-specific parameters
+- Built-in reference profiles for all non-Endless sectors
+
+### Unlimited editor values
+
+Niko did not want arbitrary editor limits:
+
+> “Why are there limits on many things? … I would like to go from anything to anything on everything.”
+
+The editor was changed so numeric values are no longer hard-clamped.
+
+Instead:
+
+- Any finite number can be entered.
+- Unusual values turn pink.
+- The editor explains why they may be unsafe.
+- Export preserves the exact entered value.
+- Preview generation uses temporary safety values so a phone is not frozen by a huge map request.
+
+This separated **authoring freedom** from **runtime safety**.
+
+---
+
+## Phase 10 — Simpler preset-map editor
+
+Although Sector Forge became powerful, it also became complicated.
+
+Niko proposed a second editor with a simpler philosophy:
+
+> “I have an idea for a new editor… preset maps… choose a thing (chest/locked chest/locked door/enemy spawn/entrance/all hazards…) and then choose the chance… 10%, 20%, 30% … 100%, and start building with it.”
+
+This became the **VOID Preset Map Editor**.
+
+Unlike Sector Forge, it lets the creator paint an actual base layout and assign spawn probability to each placed object.
+
+Supported brushes include things such as:
+
+- Floor
+- Wall
+- Entrance
+- Extraction
+- Stairs
+- Portals
+- Normal containers
+- Q1–Q7 locked containers
+- Q1–Q7 doors
+- Enemy spawns
+- Warden
+- Fire
+- Cold
+- Shock
+- Toxic
+- Void
+- Ice
+- Water
+- Deep water
+- Electrified water
+- Solar beams
+- Gravity nodes
+- Memory nodes
+- Pumps
+- Coolant systems
+- Noise pillars
+- Utility terminals
+
+The editor exports a code block beginning with:
+
+```text
+USER_PRESET_MAPS_V5.push(...)
+```
+
+The exported object can be pasted directly into the game source.
+
+The export path itself was tested by physically inserting generated editor output into a game copy and launching the custom operation.
+
+---
+
+## Phase 11 — Environmental operations and treasure sectors
+
+The next expansion focused on operations where difficulty came from the environment instead of raw enemy density.
+
+Niko selected several concepts from a sector brainstorm and added an original treasure-run idea.
+
+A representative request:
+
+> “Add Drowned Reactor… Solar Furnace… Crimson Rain… Paradox… and a Loot Rally that you need a rare entrance thing for… no enemies there at all.”
+
+### Drowned Reactor
+
+Introduced systems such as:
+
+- Dynamic water levels
+- Shallow/deep water
+- Electrified water
+- Toxic flooding
+- Pumps
+- Flood-dependent traversal
+
+### Solar Furnace
+
+Added:
+
+- Solar exposure cycles
+- Shadow periods
+- Solar-beam hazards
+- Coolant controls
+- Shutters
+- High environmental damage
+
+It later became explicitly positioned as one of the hardest finite sectors.
+
+### Crimson Rain Expanse
+
+This operation moved away from tight indoor dungeon design:
+
+- Much larger outdoor map
+- Buildings and shelters
+- Rain
+- Heavy rain
+- Acid storms
+- Lightning events
+- Exposure versus shelter decisions
+
+### Paradox Sector
+
+Paradox became an early example of what would later become the **Anomaly** category.
+
+The underlying topology stays the same across floors/realities, while the environmental rule set changes.
+
+Different realities can introduce:
+
+- Fire spreading
+- Noise systems
+- Ice
+- Shock
+- Toxic conditions
+- Void displacement
+- Mixed hazards
+
+### Loot Rally
+
+Loot Rally introduced the Card Entrance operation concept:
+
+- Rare Rally Authorization
+- Nominal 50,000-credit value
+- No enemies
+- 10–30 containers
+- Most containers locked
+- Normal extraction gameplay centered entirely around loot risk
+
+The trader was later given a confirmation warning before rerolling stock if the rare Rally Authorization was currently available.
+
+---
+
+## Phase 12 — Keys, rarity balancing, and high-tier loot
+
+The key system evolved substantially over several prompts.
+
+Niko requested Tarkov/Arena Breakout-like exact access requirements and later tightened the rules:
+
+> “For a Q3 chest/doors you need Q3 key specifically, so you can't use higher tier on lower tier doors or chests.”
+
+The access system eventually included Q1 through Q7.
+
+Important changes included:
+
+- Exact key quality matching
+- High-tier doors/containers becoming impossible to brute-force
+- Key durability
+- Protected keyring storage
+- Q3–Q7 market values
+- Better guaranteed loot in high-quality containers
+
+Later balance requirements included:
+
+- Q5+ containers should not generate low-rarity equipment.
+- Q6 should guarantee Mythic-or-better equipment.
+- Q7 should guarantee multiple Mythic/Ascendant items.
+- High-quality keys should be expensive enough to reflect expected container value and remaining uses.
+
+This was an example of the project moving from “feature exists” to **economy balancing**.
+
+---
+
+## Phase 13 — Gem expansion and seven-tier gem progression
+
+The original gem system started with four tiers.
+
+Niko later asked:
+
+> “Add more gems. Add 3 more tiers to gems too… T5 has 1 additional buff chance, T6 additional 2 buffs chance and T7 have 5 max additional buffs.”
+
+Gem quality expanded to seven tiers:
+
+1. Chipped
+2. Cut
+3. Flawless
+4. Prismatic
+5. Resonant
+6. Astral
+7. Singularity
+
+Higher-tier gems gained chances to roll additional positive facets.
+
+The system also evolved so:
+
+- Low-tier gems can occasionally roll bonus modifiers.
+- Gems can have negative modifiers.
+- Installed gem effects display directly on equipment.
+- Gem values scale higher.
+- Gem save migration preserves high-tier data.
+- Gem stacks distinguish different rolled modifier combinations.
+- Anomaly resistance gems were later introduced.
+
+The gem system became one of the most interconnected parts of the game because it touches equipment generation, UI, markets, save data, combat calculations, death/extraction state and Reforge.
+
+---
+
+## Phase 14 — Anomaly Protocol and VOID//ROOT
+
+After the game had Standard, Special and Card Entrance operations, Niko asked whether another sector category could exist.
+
+This led to **Anomaly**: operations designed to break ordinary assumptions about floor structure, time, topology, enemies or extraction.
+
+Requested Anomaly operations included:
+
+- Entropy Engine
+- Time Fracture Laboratory
+- Mirror Complex
+- Red Shift Station
+- Warden Civil War
+- The Long Night
+- Paradox Sector
+
+Other requested operations included:
+
+- Hollow City — massive hard Standard expedition
+- Predator Reserve — extremely dangerous Special operation
+- Warden Treasury — Card Entrance
+- Gemstone Sanctum — Card Entrance
+
+### Hollow City
+
+Hollow City was intended to feel like a city rather than a rectangular room dungeon.
+
+A later regression accidentally collapsed its generation into effectively a single room. Niko caught this in playtesting and requested a repair.
+
+### Warden Treasury
+
+A treasure operation built around escalating greed rather than ordinary combat.
+
+The concept became a sequence where opening deeper rewards creates additional risk and temporarily changes extraction availability.
+
+### Gemstone Sanctum
+
+A dedicated gem operation with services such as:
+
+- Gem upgrading
+- Flaw cleansing
+- High-tier facet rerolling
+
+These services are intentionally unstable and can destroy the submitted gem.
+
+### VOID//ROOT
+
+VOID//ROOT became the endgame operation.
+
+Niko's prompt described it as:
+
+> “The most complex sector… contracts will be exiting every single sector… after completing that you can go into the VOID sector… loot in it will be a special quality, 2x better than Ascendant.”
+
+A permanent completion protocol was added to progression.
+
+The ROOT unlock tracks completion/extraction requirements across built-in sectors, with deepest-floor requirements for multi-floor operations.
+
+DEV Mode can bypass the unlock for testing.
+
+VOID//ROOT introduced a new endgame rarity:
+
+**ROOTFORGED**
+
+The design goal was for ROOT to combine multiple anomaly systems simultaneously rather than only increasing health and damage.
+
+---
+
+## Phase 15 — Minimap, progression expansion, and consumables
+
+A later update requested quality-of-life and mid/endgame progression additions:
+
+> “Add more skills, more workbench crafting recipes… Level up give 3 skill points… Reset skill button… add a Minimap… add more consumables… keys that have 0 uses after a raid auto unequip.”
+
+This resulted in:
+
+- More skills
+- More crafting recipes
+- Three Skill Points per level
+- Paid skill reset/refund
+- New mid/endgame consumables
+- Automatic cleanup of depleted keys
+- Optional minimap
+
+### Minimap
+
+The minimap was designed around exploration rather than omniscience:
+
+- Shows explored corridors only
+- Shows stairs/extraction
+- Can be toggled in Records
+- Can expand to a larger view
+- Can collapse back to a small overlay
+- Was moved to the top-right on mobile after user feedback
+
+---
+
+## Phase 16 — Reforge and stronger item identity
+
+Niko then requested a new main menu system:
+
+> “Add a new category after Workshop, that will be Reforge. Player puts 3 items of the same quality into the reforge to have a chance to get an item better quality.”
+
+The **Reforge** system was designed around three same-rarity inputs.
+
+Its output category is weighted by the categories of the sacrificed items.
+
+For example:
+
+- 2 Charms + 1 Helmet
+- Approximately 2/3 chance for a Charm-category output
+- Approximately 1/3 chance for a Helmet-category output
+
+Reforge supports tiered item families, including equipment, gems and keys.
+
+Higher-rarity reforges cost more, but the upper progression was deliberately kept affordable enough to be usable.
+
+The system also had to integrate with later Special Protocol generation so reforged Relic+ gear can still roll endgame abilities.
+
+---
+
+## Phase 17 — Persistent raids, Total Loss, markets and Special Protocols
+
+The v5.3 direction introduced several systems at once.
+
+A representative prompt included:
+
+> “Add a save game in the menu of an ongoing raid so people can continue after closing and opening the site.”
+
+and:
+
+> “Add a new mechanic… only on Relic and above… special modifier… gamechanging mechanic… make like 30 of these.”
+
+### Persistent raid saves
+
+The raid menu gained a **Save Raid & Exit** workflow.
+
+The game can serialize an active raid and restore it after reopening the page.
+
+This required preserving far more than the normal profile save:
+
+- Current floor
+- Map state
+- Player position
+- Enemies
+- Loot
+- Containers
+- Status effects
+- Equipment state
+- Raid-specific events
+- Operation mechanics
+
+### Total Loss Mode
+
+Records gained an optional high-risk death mode.
+
+The default extraction-loss rules remain available, while Total Loss provides an additional punishment setting for players who want harsher stakes.
+
+### Resonance Exchange
+
+A new market was requested specifically for:
+
+- Gems
+- Crafting materials
+
+The shop uses premium prices and escalating daily reroll costs.
+
+Its inventory design includes:
+
+- Several material types per refresh
+- Variable material stack sizes
+- Several gems
+- At least one high-quality gem
+
+### Item-reward contracts and bounties
+
+Contracts and bounties gained a chance to award unknown high-rarity equipment in addition to ordinary economic rewards.
+
+This made mission completion another source of gear rather than only credits/XP.
+
+### Special Protocols
+
+Relic+ equipment gained extremely rare game-changing properties separate from normal affixes.
+
+These were intentionally designed to be mechanically distinct from bonuses such as:
+
+- +damage
+- +armor
+- +resistance
+- +critical chance
+
+Examples of Special Protocol-style mechanics include effects that alter:
+
+- Ammo behavior
+- Ricochets
+- Recovery
+- Secure storage
+- Hazard conversion
+- Movement
+- Lock interaction
+- Death behavior
+- Loot behavior
+- Combat triggers
+
+Special Protocols have rarity-weighted appearance chances, becoming much more common on Mythic/Ascendant/ROOTFORGED gear than on Relics.
+
+After the feature shipped, Niko asked:
+
+> “I can't differ the special abilities. Did you add them? Where are they?”
+
+The feature existed, but this feedback highlighted an important UI lesson: mechanically important rarity systems also need **strong visual identity**, not merely backend implementation.
+
+---
+
+# 6. Representative prompt history
+
+The following are excerpts or shortened versions of real prompts used during development.
+
+They are intentionally kept informal because one goal of the experiment is to show that the project was directed through normal conversation rather than a formal game-design specification.
+
+## Initial extraction RPG
+
+> “Fully working RPG with procedural dungeons and millions of features sounds cool… random stats to items, many damage types and armor, inventory systems… extraction shooter like… rarities… make something very complex but think about every feature so everything works and fits together.”
+
+## Ten-floor expansion
+
+> “Add more dungeon levels to 10, add more rarities, more items, more description… different dungeon generation… random daily quests… reroll trader… more crafting… deploy to different types of dungeons.”
+
+## Gemforge
+
+> “Add a gem system where you can put gems on weapons and armor… at least 20 different gems… weapon mastery… prestige… more perks… more skills… negative effects on lower rarity items.”
+
+## Gem crash report
+
+> “When I put a gem on anything and try to play it doesn't work and when I click deploy it just puts me back to menu.”
+
+## Exact socket navigation report
+
+> “When I click Socket on gem then put the gem on a weapon then try to close the gem menu it says Gem stack no longer exists.”
+
+## Special Operations
+
+> “The things that are in the game right now are just difficulties on the normal mode. Add special dungeon variants… Fire dungeon or Ice dungeon… specific generation and enemies and dangers.”
+
+## Tarkov-style keys
+
+> “Random locked doors that need some key quality… some containers locked too.”
+
+## Endless Breach
+
+> “Like one infinite floor… the enemies usually chase the player after spawning.”
+
+## Optional room generation
+
+> “Locked rooms sometimes have entrance from the side so you don't even need a key… more stuff… 1–4 chests… different shapes… stairs rooms more complex… 0–2 for both.”
+
+## Procedural editor
+
+> “Could we do a generation editor after? So I could import my own generations… change things like chances… add my deployments? All procedural of course.”
+
+## Editor usability
+
+> “Live Preview always on the right… descriptions on most things… add my own Maze or Classic or Transit… import from the existing sectors so I can learn.”
+
+## Unlimited editor values
+
+> “Why are there limits on many things? … I don't want limits… when I get over the limit any adjustable number will get pink.”
+
+## Environmental operations
+
+> “Add Drowned Reactor… Solar Furnace… Crimson Rain… Paradox…”
+
+## Loot Rally
+
+> “A loot Rally that you need a rare entrance thing for… item that costs 50k… 10–30 boxes with loot… around 80% locked… no enemies there at all.”
+
+## Preset-map editor
+
+> “Choose a thing — chest, locked chest, locked door, enemy spawn, entrance, all hazards — choose the chance 10%, 20%, 30%… and start building with it.”
+
+## Seven gem tiers
+
+> “Add 3 more tiers to gems… T5 has 1 additional buff chance, T6 additional 2 buffs chance and T7 have 5 max additional buffs.”
+
+## Treasure-sector expansion
+
+> “70k have Q5–Q7 chests… 100k have dropped items on the ground… 200k… Q7 chests… special letter item… ‘Thanks for Playing, Game by Niko and ChatGPT.’”
+
+## Anomaly category
+
+> “Paradox sector is kinda an Anomaly Sector, you can put it there too.”
+
+## VOID//ROOT
+
+> “Make it the most complex sector… contracts will be exiting every single sector… after completing that you can go into the VOID sector… loot in it will be a special quality 2x better than Ascendant.”
+
+## Reforge
+
+> “Player puts 3 items of the same quality into the reforge to have a chance to get an item better quality… 2 charms + 1 helmet should make it 66% charm and 33% helmet.”
+
+## Persistent raids
+
+> “Add a save game in the menu of an outgoing raid so people can continue after closing and opening the site.”
+
+## Special Protocols
+
+> “Only on Relic and above… special modifier… chance to get 1–3… gamechanging mechanic… make like 30 of these.”
+
+## Real playtesting feedback
+
+Examples of issues found by Niko rather than by generation tests included:
+
+> “Something broke.”
+
+> “Hollow City's generation broke. Now it's just 1 room instead of a city.”
+
+> “The extraction screen is made for wide… after I extract it doesn't show most on the screen.”
+
+> “Even on Ashen Foundry the things I find there are Epic and Relic quality.”
+
+These short reports repeatedly led to important architectural or balancing fixes.
+
+---
+
+# 7. Current game architecture
+
+## Single-file application
+
+VOID EXTRACTOR remains intentionally unusual: the complete game is primarily distributed as one HTML file containing:
+
+- HTML UI structure
+- CSS
+- JavaScript
 - Canvas rendering
 - Procedural generation
-- Game content definitions
+- Game content tables
 - Save migration
 - Audio generation
-- Touch and keyboard controls
+- Mobile controls
+- PC controls
 
-No build process is required.
+There is no required build step or game engine.
 
-## Offline operation
+## Offline-first
 
-The project was intentionally designed without:
+The game is designed to work without remote dependencies.
 
-- External JavaScript libraries
+The project avoids requiring:
+
+- External JavaScript packages
 - Remote images
-- External fonts
-- CSS imports
-- Network APIs
+- Remote fonts
 - Accounts
-- Online servers
+- Servers
+- Online APIs
 
-Browser features such as Canvas, Web Audio, vibration, file export/import, and `localStorage` are used where available.
+Browser-native features are used where appropriate.
 
-## Persistent saves
+## Save compatibility
 
-The save key remained:
+One of the most important technical rules throughout development has been preserving the original save namespace:
+
+```text
+void_extractor_rpg_v1
+```
+
+Instead of replacing old profiles, updates add migration defaults for newer systems.
+
+This approach has been used for features such as:
+
+- New records
+- New currencies/materials
+- Gems
+- High-tier gem metadata
+- Weapon mastery
+- Prestige
+- Custom sectors
+- Minimap settings
+- New markets
+- Reforge
+- Persistent raid state
+- Anomaly resistance
+- Special Protocols
+
+## Procedural generation
+
+The game now mixes several procedural approaches:
+
+- Room-and-corridor generation
+- Caverns
+- Mazes
+- Arenas
+- Grand chambers
+- Transit layouts
+- Outdoor layouts
+- Optional sealed vaults
+- Vertical annexes
+- Rare architecture variants
+- Operation-specific environmental generation
+- Fixed-topology/mutating-rule Anomaly designs
+- User-authored custom sector rules
+- User-authored preset maps with probabilistic objects
+
+---
+
+# 8. Operation philosophy
+
+As the game expanded, sectors were separated into conceptual categories.
+
+## Standard
+
+Traditional expedition structure, usually focused on:
+
+- Exploration
+- Combat
+- Floors
+- Increasing danger
+- Boss progression
+
+## Special
+
+Operations where the environment becomes a major opponent.
+
+Examples can involve:
+
+- Weather
+- Flooding
+- Solar exposure
+- Fungal ecosystems
+- Predator behavior
+- Hazard-heavy traversal
+
+## Card Entrance
+
+Operations requiring rare/expensive authorization.
+
+These are often:
+
+- Enemy-free treasure sectors
+- Specialized loot runs
+- Economic gamble operations
+- Gem-focused sectors
+- Treasury sequences
+
+## Anomaly
+
+Operations that break ordinary game rules.
+
+Examples include systems involving:
+
+- Reality changes
+- Time manipulation
+- Topology changes
+- Multiple overlapping modifiers
+- Unusual extraction structures
+- Persistent map transformations
+
+## Endgame
+
+VOID//ROOT sits at the extreme end of progression and is tied to broader completion objectives rather than normal operation availability.
+
+---
+
+# 9. Item and progression systems
+
+Over the course of development, itemization grew from ordinary random gear into several interacting layers.
+
+Current concepts include:
+
+- Base item type
+- Item level
+- Rarity
+- Positive affixes
+- Negative flaws
+- Durability
+- Damage type
+- Resistances
+- Anomaly resistance
+- Equipment sockets
+- Gem tier
+- Gem bonus facets
+- Weapon mastery
+- Special Protocols
+- Reforge
+- Secure pouch interaction
+- Keys and key quality
+- Crafting/salvage economy
+
+The intention is that two items with the same base name can still be meaningfully different.
+
+---
+
+# 10. Editors created for the project
+
+VOID EXTRACTOR eventually produced its own small tooling ecosystem.
+
+## VOID Sector Forge
+
+Designed for creating **procedural sector rule sets**.
+
+Useful for:
+
+- Generator profiles
+- Floor bands
+- Density rules
+- Room templates
+- Operation metadata
+- Procedural preview
+- Stress testing
+- JSON export/import
+
+## VOID Preset Map Editor
+
+Designed for **simple direct map authoring**.
+
+Useful for:
+
+- Painting a base layout
+- Placing game objects
+- Assigning per-object spawn probabilities
+- Creating entry-fee maps
+- Previewing generated variants
+- Exporting source-ready preset objects
+
+The two tools intentionally solve different problems.
+
+---
+
+# 11. Testing methodology
+
+Testing has been a major part of every large update.
+
+Depending on the feature, tests have included:
+
+- JavaScript parsing
+- Browser startup
+- Mobile viewport tests
+- Desktop viewport tests
+- All menu screens
+- All operation launches
+- Floor-generation stress tests
+- Warden reachability
+- Stair reachability
+- Extraction reachability
+- Vault entrance integrity
+- Annex isolation
+- Thousands of randomized item generations
+- Rarity distribution simulations
+- Key matching
+- Locked-container guarantees
+- Gem insertion/removal
+- Gem deployment
+- Save migration
+- Reforge
+- Markets
+- Crafting
+- Skill reset
+- Contracts
+- Bounties
+- Auctions
+- Minimap state
+- Persistent raid save/restore
+- Total Loss death behavior
+- Special Protocol hooks
+- Editor export/import
+- Editor-generated code pasted into game source
+
+However, the project repeatedly demonstrated that automated tests are not sufficient.
+
+Human gameplay found issues such as:
+
+- Off-screen mobile result windows
+- Modals returning to the wrong screen
+- Broken gem deployment
+- Consumed gem stacks reopening invalid UI
+- Overpowered rarity curves
+- Operation selection deploying immediately
+- Stretched recap maps
+- Hidden overlays blocking the entire game
+- Hollow City losing its intended city topology
+- Special Protocols being too visually subtle
+
+These reports often produced some of the most important improvements.
+
+---
+
+# 12. Development principles that emerged
+
+## Preserve old progress
+
+New features should be layered onto the existing profile whenever reasonably possible.
+
+## Avoid fake complexity
+
+A menu entry that does nothing meaningful is not considered a finished feature.
+
+## Difficulty should not only mean HP inflation
+
+Many later sectors were specifically designed around:
+
+- Environment
+- Traversal
+- Timing
+- Weather
+- Resource pressure
+- Access rules
+- Map transformation
+- Extraction conditions
+
+## The player should understand important mechanics
+
+The project gradually added:
+
+- Better item details
+- Modifier colors
+- Installed gem details
+- Enemy-type sector descriptions
+- PC control hints
+- Field Manual expansion
+- Minimap
+- Better loot recap
+- Category colors
+
+## Human playtesting is part of the experiment
+
+The development loop is not “AI writes code and the result is automatically correct.”
+
+It is:
+
+**Prompt → implementation → automated testing → real gameplay → bug/balance feedback → revision**
+
+---
+
+# 13. Current PC controls
+
+The current requested keyboard layout is:
+
+| Action | Key |
+|---|---|
+| Move | WASD / Arrow Keys |
+| Fire | E |
+| Strike | Q |
+| Reload | R |
+| Interact | F |
+| Quick / Medical | C |
+| Swap Weapon | V |
+| Inventory | TAB |
+| Raid Menu | T |
+| Wait | SPACE |
+
+Touch controls remain available for mobile.
+
+---
+
+# 14. Known limitations of the experiment
+
+VOID EXTRACTOR intentionally pushes a single-file browser architecture far beyond what would normally be recommended for a large game.
+
+Limitations include:
+
+- A very large HTML/JavaScript file is harder to maintain than modules.
+- Later compatibility patches can interact with older code in unexpected ways.
+- Browser `localStorage` behavior can vary depending on file location/origin.
+- Some browser features behave differently across devices.
+- Procedural balance can generate edge cases.
+- Automated testing cannot represent every long-term play pattern.
+- The game has no conventional engine/editor pipeline.
+- The AI can introduce regressions while adding apparently unrelated features.
+
+These limitations are not hidden from the experiment; they are part of what the repository is intended to demonstrate.
+
+A conventional production rewrite would probably split the project into modules for:
+
+- Save state
+- Combat
+- Items
+- Operations
+- Procedural generation
+- Rendering
+- UI
+- Audio
+- Markets/economy
+- Editors
+- Testing
+
+The single-file constraint has been kept because it is part of the original challenge.
+
+---
+
+# 15. What the project demonstrates
+
+VOID EXTRACTOR is evidence that current AI can do considerably more than generate isolated code snippets.
+
+Over many iterations, ChatGPT has been used to:
+
+- Create a playable game from an informal prompt
+- Maintain a persistent save format
+- Extend a large existing codebase
+- Interpret game-design feedback
+- Add procedural generation
+- Build item/economy systems
+- Create new game modes
+- Build editor tools
+- Diagnose reported runtime failures
+- Perform automated stress testing
+- Support mobile and PC controls
+- Preserve older user progress
+- Build increasingly interconnected mechanics
+
+At the same time, the project shows that the human role remains extremely important.
+
+Niko has been responsible for:
+
+- Choosing the direction
+- Deciding what sounds fun
+- Rejecting bad ideas
+- Reporting confusing UI
+- Finding bugs in real play
+- Requesting rebalancing
+- Deciding how harsh progression should be
+- Selecting which sector ideas become real
+- Maintaining the GitHub project
+
+The code is AI-generated, but the project is **human-directed**.
+
+---
+
+# 16. Current project scope
+
+At this stage, VOID EXTRACTOR includes systems spanning:
+
+- Standard expeditions
+- Special operations
+- Card Entrance operations
+- Anomaly operations
+- VOID//ROOT endgame
+- Multi-floor and single-map modes
+- Endless mode
+- Large outdoor sectors
+- Procedural room generation
+- Optional vaults
+- Vertical annexes
+- Locked doors/containers
+- Q1–Q7 key system
+- Turn-based combat
+- Melee and ranged weapons
+- Primary and sidearm equipment
+- Multiple damage types
+- Elemental resistance
+- Anomaly resistance
+- Status effects
+- Environmental hazards
+- Dynamic sector mechanics
+- Enemy mutations
+- Bosses
+- Random equipment
+- Rarities beyond Ascendant
+- Affixes
+- Flaws
+- Special Protocols
+- Gems
+- Seven gem tiers
+- Gem sockets
+- Weapon mastery
+- Operator skills
+- Skill reset
+- Prestige / Legacy progression
+- Raid perks
+- Contracts
+- Permanent progression objectives
+- Bounties
+- Auctions
+- Traders
+- Black Market
+- Resonance Exchange
+- Treasure authorizations
+- Reforge
+- Crafting
+- Salvaging
+- Repairs
+- Consumables
+- Ammunition
+- Secure pouch
+- Stash/loadouts
+- Automatic best-equipment tools
+- Ammo packing tools
+- Minimap
+- Raid saving/resuming
+- Raid recap
+- DEV Mode
+- Optional high-risk settings
+- Mobile touch controls
+- PC controls
+- Save export/import
+- Sector Forge
+- Preset Map Editor
+
+The exact numbers continue to change as the project evolves, so this README focuses on systems rather than treating feature counts as permanent.
+
+---
+
+# 17. Credits
+
+## Project direction, prompts, playtesting, balancing and repository
+
+**Niko / niki2007**
+
+GitHub:
+
+**https://github.com/niki2007/VOID-EXTRACTOR-PC-Mobile-game**
+
+## Programming and generated game content
+
+**ChatGPT — GPT-5.6 Sol**
+
+## Development method
+
+Natural-language prompting, AI-generated code, automated testing and repeated human playtesting.
+
+---
+
+# 18. Final note
+
+VOID EXTRACTOR was not produced from one giant prompt.
+
+It grew from a conversation.
+
+The project repeatedly followed the same pattern:
+
+> “This sounds cool. Add it.”
+
+then:
+
+> “This part is broken.”
+
+then:
+
+> “That works great. What else can we do?”
+
+A prototype became a persistent extraction RPG. That RPG gained procedural sectors, an economy, gems, keys, mastery, prestige, environmental operations, treasure runs, Anomaly sectors, endgame progression, editor tools and increasingly complicated item systems.
+
+The most interesting result of the experiment is not that AI can generate a lot of code.
+
+It is that a human can continuously **direct, test, criticize and reshape** AI-generated software through ordinary conversation, while the AI attempts to preserve and extend everything that came before.
+
+That ongoing collaboration is the experiment.
+
 
 ```text
 void_extractor_rpg_v1
@@ -602,7 +1671,7 @@ Procedural generation creates a large number of combinations without requiring s
 
 ---
 
-# 8. Testing process
+# 19. Testing process
 
 The game was repeatedly tested after major revisions.
 
@@ -656,7 +1725,7 @@ This shows why AI generation and automated testing still benefit heavily from hu
 
 ---
 
-# 9. Design principles that emerged
+# 20. Design principles that emerged
 
 ## Add systems on top instead of deleting old content
 
@@ -705,7 +1774,7 @@ Later, PC controls were layered on top without removing the mobile interface.
 
 ---
 
-# 10. Known limitations
+# 21. Known limitations
 
 This project is an AI-development experiment, not a traditional commercial production pipeline.
 
@@ -738,7 +1807,7 @@ The single-file format was retained because it was one of the experiment’s mai
 
 ---
 
-# 11. What this experiment demonstrates
+# 22. What this experiment demonstrates
 
 VOID EXTRACTOR demonstrates that current AI can:
 
@@ -767,7 +1836,7 @@ The AI wrote the code, but the game became what it is because a human repeatedly
 
 ---
 
-# 12. Project status
+# 23. Project status
 
 The current version contains a very large set of systems, including:
 
@@ -814,7 +1883,7 @@ The project can continue expanding, but it has already moved far beyond the orig
 
 ---
 
-# 13. Credits
+# 24. Credits
 
 ## Project direction, prompts, testing, and repository
 
