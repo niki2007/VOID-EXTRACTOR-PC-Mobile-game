@@ -88,7 +88,7 @@ body:after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.13;bac
 </head>
 <body>
 <div id="app">
-  <div id="boot" class="boot"><div class="bootbox"><div class="logo">VOID <b>EXTRACTOR</b></div><div class="muted">TACTICAL RELIC RECOVERY SYSTEM v5.1</div><div class="bootline"><i></i></div><div id="bootText" class="boottext">Mounting offline vault...<br>Calibrating procedural sector engine...<br>Restoring operator profile...</div></div></div>
+  <div id="boot" class="boot"><div class="bootbox"><div class="logo">VOID <b>EXTRACTOR</b></div><div class="muted">TACTICAL RELIC RECOVERY SYSTEM v5.3</div><div class="bootline"><i></i></div><div id="bootText" class="boottext">Mounting offline vault...<br>Calibrating procedural sector engine...<br>Restoring operator profile...</div></div></div>
   <div id="shell" class="shell hidden">
     <header class="topbar"><div class="brand">V<b>//</b>E</div><div id="rankPill" class="pill"></div><div class="topstats"><div id="creditPill" class="pill"></div><div id="shardPill" class="pill"></div></div><button id="soundBtn" class="iconbtn" aria-label="Sound">🔊</button></header>
     <main id="main" class="main"></main>
@@ -2561,6 +2561,454 @@ manualModal=function(){let points=[
 
 
 
+
+
+/* ======================= VOID EXTRACTOR v5.3 // FORGE & PERSISTENCE ======================= */
+const V53_VERSION=5.3;
+
+// ---------- visual additions ----------
+(()=>{let s=document.createElement('style');s.textContent=`
+@media(max-width:520px){.minimap-v52{top:5px!important;bottom:auto!important;right:5px!important}}
+.skill-points-v53{position:sticky;top:0;z-index:4;border:1px solid #7b3042;background:rgba(37,9,16,.96);padding:10px 12px;border-radius:12px;margin:0 0 10px;backdrop-filter:blur(8px)}
+.reforge-slot-v53{min-height:128px;border:1px dashed #783244;background:#11070a;border-radius:13px;padding:10px;display:grid;align-content:center;cursor:pointer}
+.reforge-slot-v53.selected{border-style:solid;box-shadow:inset 0 0 0 1px rgba(255,51,77,.25)}
+.reforge-result-v53{border:1px solid #8e3549;background:linear-gradient(180deg,#281018,#14070b);border-radius:14px;padding:13px}
+.enemy-spectrum-v53{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.enemy-spectrum-v53 span{font-size:9px;border:1px solid currentColor;border-radius:999px;padding:3px 6px;background:#090407}
+.reward-item-v53{margin-top:7px;padding:6px 8px;border:1px solid #653043;border-radius:8px;background:#17080d;font-size:10px}
+.special-trait-v53{border-left:3px solid #fff1a8;background:#170b0d;padding:9px 10px;border-radius:8px;margin:6px 0}.special-trait-v53 b{color:#fff1a8}.special-chip-v53{font-size:9px;border:1px solid #fff1a8;color:#fff1a8;padding:2px 6px;border-radius:999px}
+.type-weapon-v53{color:#d8b7ff!important}.type-armor-v53{color:#a9d7ff!important}.type-charm-v53{color:#ffd3a3!important}.type-implant-v53{color:#f2a8ff!important}.type-gem-v53{color:#ffb8e8!important}.type-key-v53{color:#ffe89a!important}.type-consumable-v53{color:#aef4c2!important}.type-ammo-v53{color:#ffd4b0!important}.type-material-v53{color:#c6e7d2!important}.type-contraband-v53{color:#ff9caa!important}
+.resource-market-badge-v53{color:#ffd2ed;border-color:#7a365b}.root-contract-v53{border-color:#ff4b88;box-shadow:inset 0 0 24px rgba(255,75,136,.05)}
+.saved-raid-v53{border-color:#c34865;background:linear-gradient(180deg,#250b12,#14070b)}
+.total-loss-v53{border-color:#8b2539}.danger-note-v53{color:#ff8397;font-size:10px;line-height:1.5}
+`;document.head.appendChild(s)})();
+
+// ---------- nav / generic helpers ----------
+if(!NAV.some(n=>n[0]==='reforge')){let wi=NAV.findIndex(n=>n[0]==='workshop');NAV.splice(wi+1,0,['reforge','♻','Reforge'])}
+const TYPE_COLOR_CLASS_V53={weapon:'type-weapon-v53',armor:'type-armor-v53',charm:'type-charm-v53',implant:'type-implant-v53',gem:'type-gem-v53',key:'type-key-v53',consumable:'type-consumable-v53',ammo:'type-ammo-v53',material:'type-material-v53',contraband:'type-contraband-v53'};
+function finiteV53(n,d=0){n=Number(n);return Number.isFinite(n)?n:d}
+function equippedItemsV53(){return Object.values(raid?.player?.equipment||profile?.loadout||{}).filter(Boolean)}
+function hasTraitV53(id){return equippedItemsV53().some(i=>(i.specialTraitsV53||[]).includes(id))}
+function traitItemV53(id){return equippedItemsV53().find(i=>(i.specialTraitsV53||[]).includes(id))}
+function activeWeaponHasTraitV53(id){return !!currentWeapon?.()&&(currentWeapon().specialTraitsV53||[]).includes(id)}
+function traitUseKeyV53(id,suffix=''){return `${raid?.floor||0}:${id}:${suffix}`}
+function markTraitOnceV53(id,suffix=''){raid.specialUsesV53||={};let k=traitUseKeyV53(id,suffix);if(raid.specialUsesV53[k])return false;raid.specialUsesV53[k]=1;return true}
+
+// ---------- fix Hollow City: connected street grid + buildings + alleys ----------
+buildHollowCityV52=function(r,w=61,h=41){
+ w=Math.max(45,w|0);h=Math.max(33,h|0);let tiles=Array.from({length:h},()=>Array(w).fill('#')),rooms=[];
+ const carve=(x,y)=>{if(x>0&&y>0&&x<w-1&&y<h-1)tiles[y][x]='.'};
+ // broad connected road grid
+ let vx=[];for(let x=3;x<w-3;x+=12)vx.push(x);let hy=[];for(let y=3;y<h-3;y+=10)hy.push(y);
+ for(let x of vx)for(let y=1;y<h-1;y++)for(let dx=-1;dx<=1;dx++)carve(x+dx,y);
+ for(let y of hy)for(let x=1;x<w-1;x++)for(let dy=-1;dy<=1;dy++)carve(x,y+dy);
+ // plazas and irregular buildings in every city block
+ for(let gy=0;gy<hy.length-1;gy++)for(let gx=0;gx<vx.length-1;gx++){
+   let x0=vx[gx]+2,x1=vx[gx+1]-2,y0=hy[gy]+2,y1=hy[gy+1]-2,bw=x1-x0+1,bh=y1-y0+1;
+   if(bw<5||bh<5)continue;
+   if(chance(.14,r)){ // open plaza
+     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)carve(x,y);
+     rooms.push({x:x0,y:y0,w:bw,h:bh,cx:Math.floor((x0+x1)/2),cy:Math.floor((y0+y1)/2),plaza:true});continue;
+   }
+   let inset=chance(.35,r)?1:0,bx=x0+inset,by=y0+inset,rw=Math.max(5,bw-inset*2),rh=Math.max(5,bh-inset*2);
+   for(let y=by;y<by+rh;y++)for(let x=bx;x<bx+rw;x++){let edge=x===bx||x===bx+rw-1||y===by||y===by+rh-1;tiles[y][x]=edge?'#':'.'}
+   let sides=['n','s','w','e'],doorCount=1+(chance(.55,r)?1:0)+(chance(.16,r)?1:0),doorSpecs=[];sides.sort(()=>r()-.5);
+   for(let n=0;n<doorCount;n++){
+     let side=sides[n],dx,dy;
+     if(side==='n'){dx=bx+1+Math.floor(r()*Math.max(1,rw-2));dy=by;for(let y=dy;y>=hy[gy];y--)carve(dx,y)}
+     if(side==='s'){dx=bx+1+Math.floor(r()*Math.max(1,rw-2));dy=by+rh-1;for(let y=dy;y<=hy[gy+1];y++)carve(dx,y)}
+     if(side==='w'){dx=bx;dy=by+1+Math.floor(r()*Math.max(1,rh-2));for(let x=dx;x>=vx[gx];x--)carve(x,dy)}
+     if(side==='e'){dx=bx+rw-1;dy=by+1+Math.floor(r()*Math.max(1,rh-2));for(let x=dx;x<=vx[gx+1];x++)carve(x,dy)}
+     carve(dx,dy);doorSpecs.push({side,x:dx,y:dy});
+   }
+   // one optional interior partition with a guaranteed doorway; never cross two partitions into isolated quadrants
+   if(rw>=8&&chance(.48,r)){let sx=bx+Math.floor(rw/2);if(!doorSpecs.some(d=>(d.side==='n'||d.side==='s')&&d.x===sx)){for(let y=by+1;y<by+rh-1;y++)tiles[y][sx]='#';carve(sx,by+1+Math.floor(r()*Math.max(1,rh-2)))}}
+   else if(rh>=8&&chance(.42,r)){let sy=by+Math.floor(rh/2);if(!doorSpecs.some(d=>(d.side==='w'||d.side==='e')&&d.y===sy)){for(let x=bx+1;x<bx+rw-1;x++)tiles[sy][x]='#';carve(bx+1+Math.floor(r()*Math.max(1,rw-2)),sy)}}
+   rooms.push({x:bx,y:by,w:rw,h:rh,cx:bx+Math.floor(rw/2),cy:by+Math.floor(rh/2)});
+ }
+ // secondary alleys always grow outward from existing streets/buildings, so they cannot create isolated pockets
+ let connectedSeeds=[];for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++)if(tiles[y][x]==='.')connectedSeeds.push({x,y});
+ for(let n=0;n<Math.floor((w*h)/430);n++){let st=pick(connectedSeeds,r),x=st.x,y=st.y;for(let k=0;k<5+Math.floor(r()*10);k++){carve(x,y);if(r()<.5)x+=r()<.5?-1:1;else y+=r()<.5?-1:1;x=clamp(x,2,w-3);y=clamp(y,2,h-3)}}
+ for(let x=0;x<w;x++){tiles[0][x]='#';tiles[h-1][x]='#'}for(let y=0;y<h;y++){tiles[y][0]='#';tiles[y][w-1]='#'}
+ // first room is deliberately a connected road plaza, so initOperationFromBuilt finds whole city
+ rooms.unshift({x:1,y:1,w:5,h:5,cx:vx[0]||3,cy:hy[0]||3,street:true});
+ return {w,h,tiles,rooms};
+};
+
+// ---------- material expansion for resource economy ----------
+Object.assign(MATERIALS,{
+ phase:{name:'Phase Filament',icon:'≈',value:38},
+ biomass:{name:'Reactive Biomass',icon:'✿',value:31},
+ chronite:{name:'Chronite Dust',icon:'⌛',value:58}
+});
+if(typeof MATERIAL_COLORS_V43!=='undefined')Object.assign(MATERIAL_COLORS_V43,{phase:'#c9b2df',biomass:'#a9d9b2',chronite:'#d9c3a5'});
+
+// ---------- additional sidearms ----------
+const V53_SIDEARMS=[
+ {name:'Arc Service Pistol',type:'weapon',slot:'sidearm',icon:'ϟ',damage:15,damageType:'shock',range:7,mag:11,ammoType:'cells',crit:.08,weight:2.4,size:2,value:185,tags:['ranged']},
+ {name:'Ember Handcannon',type:'weapon',slot:'sidearm',icon:'♨',damage:22,damageType:'fire',range:6,mag:6,ammoType:'heavy',crit:.09,weight:3.1,size:3,value:240,tags:['ranged']},
+ {name:'Cryo Revolver',type:'weapon',slot:'sidearm',icon:'❄',damage:18,damageType:'cold',range:7,mag:6,ammoType:'cells',crit:.15,weight:2.7,size:2,value:225,tags:['ranged']},
+ {name:'Mire Dart Pistol',type:'weapon',slot:'sidearm',icon:'☣',damage:12,damageType:'toxic',range:8,mag:12,ammoType:'darts',crit:.08,statusPower:.08,weight:2,size:2,value:205,tags:['ranged']},
+ {name:'Null Pocket Lance',type:'weapon',slot:'sidearm',icon:'◈',damage:21,damageType:'void',range:8,mag:5,ammoType:'cells',crit:.13,weight:2.8,size:2,value:285,tags:['ranged']},
+ {name:'Breach Compact',type:'weapon',slot:'sidearm',icon:'═',damage:28,damageType:'kinetic',range:3,mag:3,ammoType:'shells',crit:.05,weight:3.4,size:3,value:265,tags:['ranged','spread']},
+ {name:'Coil Derringer',type:'weapon',slot:'sidearm',icon:'›',damage:32,damageType:'kinetic',range:5,mag:2,ammoType:'heavy',crit:.17,pen:12,weight:2.2,size:2,value:330,tags:['ranged']},
+ {name:'Pulse Auto Sidearm',type:'weapon',slot:'sidearm',icon:'∴',damage:13,damageType:'shock',range:6,mag:20,ammoType:'light',crit:.07,weight:2.9,size:3,value:250,tags:['ranged']},
+ {name:'Ash Needle',type:'weapon',slot:'sidearm',icon:'†',damage:16,damageType:'fire',range:9,mag:9,ammoType:'darts',crit:.16,weight:1.8,size:2,value:295,tags:['ranged']},
+ {name:'Warden Defender',type:'weapon',slot:'sidearm',icon:'⊢',damage:19,damageType:'kinetic',range:7,mag:14,ammoType:'light',crit:.10,pen:5,weight:2.6,size:2,value:310,tags:['ranged']},
+ {name:'Anomaly Suppressor',type:'weapon',slot:'sidearm',icon:'Ø',damage:20,damageType:'void',range:7,mag:8,ammoType:'cells',crit:.10,anomalyDamage:.10,weight:2.5,size:2,value:360,tags:['ranged']},
+ {name:'Redline Machine Pistol',type:'weapon',slot:'sidearm',icon:'≋',damage:14,damageType:'kinetic',range:5,mag:24,ammoType:'light',crit:.06,multishot:.04,weight:3.2,size:3,value:325,tags:['ranged']}
+];
+for(let b of V53_SIDEARMS)if(!BASES.some(x=>x.name===b.name))BASES.push(b);
+
+// ---------- regular modifiers + armor flaws ----------
+const V53_AFFIXES=[
+ {name:'Pocketfold',types:['armor','charm','implant'],filter:i=>i.slot!=='head'&&i.slot!=='boots',apply:i=>i.secure=(i.secure||0)+1,desc:'+1 secure pouch capacity'},
+ {name:'Hazard-Sealed',types:['armor','charm','implant'],apply:i=>i.hazardResist=(i.hazardResist||0)+.08,desc:'+8% environmental hazard resistance'},
+ {name:'Anomaly-Warded',types:['armor','charm','implant'],apply:i=>i.anomalyResist=(i.anomalyResist||0)+.08,desc:'+8% Anomaly-sector enemy resistance'},
+ {name:'Quartermaster',types:['armor'],filter:i=>i.slot==='rig'||i.slot==='body',apply:i=>i.capacity=(i.capacity||0)+3,desc:'+3 backpack slots'},
+ {name:'Load-Bearing',types:['armor'],apply:i=>i.weightCap=(i.weightCap||0)+6,desc:'+6kg carry capacity'},
+ {name:'Enduring',types:['armor','weapon'],apply:i=>{i.maxDurability=Math.round((i.maxDurability||100)*1.20);i.durability=i.maxDurability},desc:'+20% maximum durability'},
+ {name:'Ammo Recycler',types:['weapon'],apply:i=>i.ammoRefund=(i.ammoRefund||0)+.06,desc:'+6% ammunition refund'},
+ {name:'Capacitive',types:['weapon','implant'],apply:i=>i.energyOnHit=(i.energyOnHit||0)+2,desc:'+2 energy on damaging hit'},
+ {name:'Elite Hunter',types:['weapon'],apply:i=>i.eliteDamage=(i.eliteDamage||0)+.10,desc:'+10% damage to elites and Wardens'},
+ {name:'Masterwork',types:['weapon'],apply:i=>i.masteryGain=(i.masteryGain||0)+.15,desc:'+15% weapon mastery gain'},
+ {name:'Critical Matrix',types:['weapon','charm'],apply:i=>i.critDamage=(i.critDamage||0)+.15,desc:'+15% critical damage'},
+ {name:'Overpenetrating',types:['weapon'],apply:i=>i.pen=(i.pen||0)+12,desc:'+12 penetration'},
+ {name:'Status Amplifier',types:['weapon','implant'],apply:i=>i.statusPower=(i.statusPower||0)+.10,desc:'+10% status power'},
+ {name:'Quiet-Coupled',types:['weapon','armor'],apply:i=>i.noise=(i.noise||0)-2,desc:'-2 generated noise'},
+ {name:'Reinforced Aegis',types:['armor','implant'],apply:i=>i.barrier=(i.barrier||0)+15,desc:'+15 barrier'},
+ {name:'Bio-Weave',types:['armor','charm'],apply:i=>i.regen=(i.regen||0)+.5,desc:'+0.5 HP regeneration per turn'},
+ {name:'Profit-Tuned',types:['armor','charm'],apply:i=>i.creditBonus=(i.creditBonus||0)+.08,desc:'+8% raid credit gain'},
+ {name:'Deathbound',types:['armor','charm','implant'],apply:i=>i.deathSave=(i.deathSave||0)+.05,desc:'+5% death retention chance'},
+ {name:'Retaliator',types:['armor'],apply:i=>i.thorns=(i.thorns||0)+4,desc:'+4 retaliation damage'},
+ {name:'Flux Mesh',types:['armor','implant'],apply:i=>i.energyRegen=(i.energyRegen||0)+1,desc:'+1 energy recovery per turn'}
+];
+for(let a of V53_AFFIXES)if(!AFFIXES.some(x=>x.name===a.name))AFFIXES.push(a);
+const V53_FLAWS=[
+ {name:'Torn Pockets',types:['armor'],filter:i=>i.slot==='rig'||i.slot==='body',apply:i=>i.capacity=Math.max(0,(i.capacity||0)-3),desc:'-3 backpack slots'},
+ {name:'Compromised Fold',types:['armor','charm','implant'],apply:i=>i.secure=(i.secure||0)-1,desc:'-1 secure pouch capacity'},
+ {name:'Hazard Permeable',types:['armor'],apply:i=>i.hazardResist=(i.hazardResist||0)-.10,desc:'-10% environmental hazard resistance'},
+ {name:'Anomaly Conductor',types:['armor','charm','implant'],apply:i=>i.anomalyResist=(i.anomalyResist||0)-.10,desc:'-10% Anomaly-sector enemy resistance'},
+ {name:'Exhausted Servos',types:['armor'],apply:i=>i.weightCap=(i.weightCap||0)-4,desc:'-4kg carry capacity'},
+ {name:'Static Drain',types:['armor','implant'],apply:i=>i.energyRegen=(i.energyRegen||0)-1,desc:'-1 energy recovery per turn'},
+ {name:'Fragile Aegis',types:['armor','implant'],apply:i=>i.barrier=Math.max(0,(i.barrier||0)-10),desc:'-10 barrier'},
+ {name:'Scarred Lining',types:['armor'],apply:i=>i.hp=(i.hp||0)-12,desc:'-12 maximum HP'},
+ {name:'Loud Couplings',types:['armor'],apply:i=>i.noise=(i.noise||0)+3,desc:'+3 generated noise'},
+ {name:'Unstable Footing',types:['armor'],filter:i=>i.slot==='boots',apply:i=>i.dodge=(i.dodge||0)-.05,desc:'-5% dodge'},
+ {name:'Corroded Weave',types:['armor'],apply:i=>i.armor=Math.max(0,Math.round((i.armor||0)*.84)),desc:'-16% armor'},
+ {name:'Contaminated Seals',types:['armor'],apply:i=>{i.resist||={};i.resist.toxic=(i.resist.toxic||0)-15},desc:'-15 toxic resistance'},
+ {name:'Cracked Insulation',types:['armor'],apply:i=>{i.resist||={};i.resist.shock=(i.resist.shock||0)-15},desc:'-15 shock resistance'},
+ {name:'Heat-Warped',types:['armor'],apply:i=>{i.resist||={};i.resist.fire=(i.resist.fire||0)-15},desc:'-15 fire resistance'},
+ {name:'Void-Porous',types:['armor'],apply:i=>{i.resist||={};i.resist.void=(i.resist.void||0)-15},desc:'-15 void resistance'}
+];
+if(typeof ITEM_FLAWS_V3!=='undefined')for(let a of V53_FLAWS)if(!ITEM_FLAWS_V3.some(x=>x.name===a.name))ITEM_FLAWS_V3.push(a);
+
+// ---------- anomaly / hazard gems and broader bonus facets ----------
+const V53_GEMS=[
+ {id:'anomaly_amber',name:'Anomaly Amber',icon:'◉',allowed:['armor','charm','implant'],mods:{anomalyResist:.05},desc:'Resonates against hostile anomaly signatures.',baseValue:175},
+ {id:'hazard_glass',name:'Hazard Glass',icon:'◇',allowed:['armor','charm','implant'],mods:{hazardResist:.05},desc:'Dampens environmental damage from sector hazards.',baseValue:165},
+ {id:'root_onyx',name:'Root Onyx',icon:'Ø',allowed:['weapon'],mods:{anomalyDamage:.05},desc:'Amplifies damage against enemies inside Anomaly sectors.',baseValue:210},
+ {id:'fold_opal',name:'Fold Opal',icon:'◌',allowed:['armor','charm'],mods:{secure:1},desc:'Extends the secure pouch by one slot.',baseValue:260}
+];
+for(let g of V53_GEMS){if(!GEM_DEFS_V3.some(x=>x.id===g.id))GEM_DEFS_V3.push(g);if(typeof GEM_MAP_V3!=='undefined')GEM_MAP_V3[g.id]=g}
+if(typeof GEM_LABELS_V41!=='undefined')Object.assign(GEM_LABELS_V41,{secure:'secure pouch capacity',hazardResist:'environmental hazard resistance',anomalyResist:'Anomaly resistance',anomalyDamage:'damage in Anomaly sectors',creditBonus:'raid credit gain',eliteDamage:'elite damage',masteryGain:'mastery gain',energyOnHit:'energy on hit'});
+if(typeof GEM_BONUS_EFFECTS_V51!=='undefined'){
+ let add=[
+  {id:'b_capacity',name:'Folded Carry Space',allowed:['armor','charm'],mods:{capacity:2},desc:'+2 backpack capacity'},
+  {id:'b_secure',name:'Secure Fold',allowed:['armor','charm','implant'],mods:{secure:1},desc:'+1 secure pouch capacity'},
+  {id:'b_hazard',name:'Hazard Seal',allowed:['armor','charm','implant'],mods:{hazardResist:.04},desc:'+4% hazard resistance'},
+  {id:'b_anomaly',name:'Anomaly Seal',allowed:['armor','charm','implant'],mods:{anomalyResist:.04},desc:'+4% Anomaly resistance'},
+  {id:'b_weightcap',name:'Load Frame',allowed:['armor'],mods:{weightCap:3},desc:'+3kg carry capacity'},
+  {id:'b_thorns2',name:'Reactive Edge',allowed:['armor'],mods:{thorns:2},desc:'+2 retaliation damage'},
+  {id:'b_barrier2',name:'Barrier Seed',allowed:['armor','implant'],mods:{barrier:8},desc:'+8 barrier'},
+  {id:'b_regen2',name:'Living Facet',allowed:['armor','charm'],mods:{regen:.35},desc:'+0.35 HP regeneration per turn'},
+  {id:'b_anomdmg',name:'Anomaly Hunter',allowed:['weapon'],mods:{anomalyDamage:.04},desc:'+4% damage in Anomaly sectors'},
+  {id:'b_elite',name:'Warden Edge',allowed:['weapon'],mods:{eliteDamage:.05},desc:'+5% elite damage'}
+ ];for(let x of add){if(!GEM_BONUS_EFFECTS_V51.some(y=>y.id===x.id))GEM_BONUS_EFFECTS_V51.push(x);if(typeof GEM_BONUS_MAP_V51!=='undefined')GEM_BONUS_MAP_V51[x.id]=x}
+}
+const V53_BASE_ROLL_GEM_BONUSES=rollGemBonusesV51;
+rollGemBonusesV51=function(g,r=Math.random){let tier=clamp(Number(g?.gemTier||g?.tier)||1,1,7),d=gemDefV3(g),pool=GEM_BONUS_EFFECTS_V51.filter(b=>b.allowed.some(a=>(d?.allowed||[]).includes(a))),cfg={1:[1,.055],2:[1,.085],3:[1,.12],4:[1,.17],5:[1,.34],6:[2,.34],7:[5,.28]}[tier],out=[];for(let n=0;n<cfg[0]&&pool.length;n++){if(!chance(cfg[1],r))continue;let ix=Math.floor(r()*pool.length);out.push(pool.splice(ix,1)[0].id)}return out};
+const V53_BASE_MAKE_GEM=makeGemV3;
+makeGemV3=function(kind=null,tier=1,qty=1,r=Math.random){let g=V53_BASE_MAKE_GEM(kind,tier,qty,r),d=gemDefV3(g),sc=GEM_TIER_SCALE_V3[(g.gemTier||1)-1]||1;g.value=Math.max(g.value||0,Math.round((d?.baseValue||60)*sc*2));return g};
+const V53_BASE_SCALED_GEM_MODS=scaledGemModsV3;
+scaledGemModsV3=function(g){let m=V53_BASE_SCALED_GEM_MODS(g);if(m&&m.secure)m.secure=Math.sign(m.secure)*Math.min(1,Math.abs(m.secure));return m};
+
+// ---------- special Relic+ mechanics ----------
+const SPECIAL_TRAITS_V53=[
+ {id:'ricochet_protocol',name:'Ricochet Protocol',allowed:['weapon'],desc:'Damaging ranged hits have a 30% chance to strike a second nearby hostile for 35% of dealt damage.'},
+ {id:'last_round',name:'Last-Round Doctrine',allowed:['weapon'],desc:'The final round in a magazine deals 75% more damage.'},
+ {id:'kill_reload',name:'Predatory Feed',allowed:['weapon'],desc:'A kill immediately returns one round to the active magazine.'},
+ {id:'kill_capacitor',name:'Execution Capacitor',allowed:['weapon'],desc:'A kill restores 12 Energy.'},
+ {id:'shock_lock',name:'Neural Lock',allowed:['weapon'],desc:'Damaging hits have a 14% chance to stun the target for one turn.'},
+ {id:'pyre_wake',name:'Pyre Wake',allowed:['weapon'],desc:'Kills have a 28% chance to leave a Fire hazard under the victim.'},
+ {id:'toxic_wake',name:'Mire Wake',allowed:['weapon'],desc:'Kills have a 28% chance to leave a Toxic hazard under the victim.'},
+ {id:'warden_breaker',name:'Warden Breaker',allowed:['weapon'],desc:'The first hit on each elite per floor permanently strips 12 armor.'},
+ {id:'hazard_fury',name:'Hazard Fury',allowed:['weapon'],desc:'While standing on an environmental hazard, weapon damage is increased by 45%.'},
+ {id:'blood_trigger',name:'Blood Trigger',allowed:['weapon'],desc:'If Energy is too low to fire, sacrifice 8% maximum HP to power one shot.'},
+ {id:'ammo_alchemy',name:'Ammo Alchemy',allowed:['weapon'],desc:'If correct ammunition is absent, reload using any ammunition at 2 rounds consumed per 1 loaded.'},
+ {id:'echo_chamber',name:'Echo Chamber',allowed:['weapon'],desc:'Once every 6 turns, a damaging hit repeats for 50% damage.'},
+ {id:'shield_siphon',name:'Shield Siphon',allowed:['weapon'],desc:'8% of weapon damage is converted into temporary Barrier.'},
+ {id:'phase_rounds',name:'Phase Rounds',allowed:['weapon'],desc:'Weapon attacks gain 20 additional penetration.'},
+ {id:'anomaly_hunter',name:'Anomaly Hunter',allowed:['weapon'],desc:'Deal 35% more weapon damage inside Anomaly sectors.'},
+ {id:'phoenix_protocol',name:'Phoenix Protocol',allowed:['armor','charm','implant'],desc:'Once per floor, lethal damage instead restores you to 30% maximum HP.'},
+ {id:'secure_fold',name:'Impossible Pocket',allowed:['armor','charm','implant'],desc:'Adds one secure-pouch slot while equipped.'},
+ {id:'hazard_converter',name:'Hazard Converter',allowed:['armor','charm','implant'],desc:'35% of environmental damage taken is returned as Energy.'},
+ {id:'anomaly_lattice',name:'Anomaly Lattice',allowed:['armor','charm','implant'],desc:'Adds 15% resistance against all enemy damage in Anomaly sectors.'},
+ {id:'adaptive_plating',name:'Adaptive Plating',allowed:['armor'],desc:'The first hit of each damage type per floor grants +15 resistance to that type for the rest of the floor.'},
+ {id:'phase_recoil',name:'Phase Recoil',allowed:['armor','boots','implant'],desc:'Heavy hits have a 25% chance to phase you to a nearby safe tile.'},
+ {id:'auto_trauma',name:'Auto-Trauma System',allowed:['armor','implant'],desc:'Once per floor, dropping below 25% HP automatically heals 35% maximum HP.'},
+ {id:'scavenger_echo',name:'Scavenger Echo',allowed:['armor','charm','implant'],desc:'The first cache opened each floor creates one additional loot roll.'},
+ {id:'lock_whisper',name:'Lock Whisper',allowed:['armor','charm','implant'],desc:'The first exact-key unlock each floor refunds the key use if one was consumed.'},
+ {id:'ghost_step',name:'Ghost Step',allowed:['boots','armor','implant'],desc:'Every third environmental hazard step deals no damage.'},
+ {id:'status_purge',name:'Purity Kernel',allowed:['armor','charm','implant'],desc:'The first harmful elemental status each floor is immediately removed.'},
+ {id:'entropy_anchor',name:'Entropy Anchor',allowed:['armor','charm','implant'],desc:'Entropy Engine escalation has a 50% chance to skip each tick.'},
+ {id:'eclipse_reversal',name:'Eclipse Reversal',allowed:['armor','charm','implant'],desc:'During Blood Moon phase, regenerate 2 HP every turn.'},
+ {id:'death_cache',name:'Last Carrier',allowed:['armor','charm','implant'],desc:'This item always survives ordinary raid death and marks one carried item for insurance.'},
+ {id:'supply_conservation',name:'Supply Conservation',allowed:['armor','charm','implant'],desc:'Consumables have a 25% chance not to be consumed.'}
+];
+function allowedForTraitV53(i,t){if(!i?.slot)return false;if(t.allowed.includes(i.type)||t.allowed.includes(i.slot))return true;return false}
+function rollSpecialTraitsV53(i,r=Math.random){if(!i?.slot||i.specialTraitsV53?.length)return i;let ri=i.rarity||0,p=ri===5?.018:ri===6?.20:ri===7?.82:ri>=8?1:0;if(!p||!chance(p,r)){i.specialTraitsV53=[];return i}let count=1;if(ri===6&&chance(.15,r))count=2;if(ri===7){if(chance(.45,r))count=2;if(count===2&&chance(.18,r))count=3}if(ri>=8){count=2+(chance(.55,r)?1:0)}let pool=SPECIAL_TRAITS_V53.filter(t=>allowedForTraitV53(i,t));i.specialTraitsV53=[];while(i.specialTraitsV53.length<count&&pool.length){let ix=Math.floor(r()*pool.length),t=pool.splice(ix,1)[0];i.specialTraitsV53.push(t.id)}return i}
+function specialTraitDefsV53(i){return (i?.specialTraitsV53||[]).map(id=>SPECIAL_TRAITS_V53.find(t=>t.id===id)).filter(Boolean)}
+const V53_BASE_GEN_ITEM=genItem;
+genItem=function(level=1,forcedType=null,minRarity=0,r=Math.random){let i=V53_BASE_GEN_ITEM(level,forcedType,minRarity,r);rollSpecialTraitsV53(i,r);return i};
+
+// ---------- skills / effects ----------
+const V53_SKILLS=[
+ {id:'anomalyward',branch:'Survival',name:'Anomaly Conditioning',max:5,desc:'+4% Anomaly-sector enemy resistance / rank'},
+ {id:'hazardward2',branch:'Survival',name:'Environmental Shell',max:5,desc:'+3% environmental hazard resistance / rank'},
+ {id:'securetraining',branch:'Scavenging',name:'Fold Discipline',max:2,desc:'+1 secure pouch capacity / rank'},
+ {id:'reforgechance',branch:'Engineering',name:'Reforge Stability',max:5,desc:'+4% reforge upgrade chance / rank'},
+ {id:'reforgediscount',branch:'Engineering',name:'Reforge Economics',max:4,desc:'-8% reforge credit cost / rank'},
+ {id:'gemmerchant',branch:'Engineering',name:'Gem Valuation',max:4,desc:'-5% Resonance Exchange gem prices / rank'},
+ {id:'traitfinder',branch:'Scavenging',name:'Signature Sense',max:4,desc:'Slightly improves special-trait roll chance on Relic+ drops / rank'},
+ {id:'consserve',branch:'Survival',name:'Field Conservation',max:4,desc:'+5% chance consumables are not consumed / rank'},
+ {id:'sidearmexpert',branch:'Combat',name:'Sidearm Doctrine',max:5,desc:'+4% sidearm damage / rank'},
+ {id:'elitehunter2',branch:'Combat',name:'Warden Anatomy',max:5,desc:'+4% damage to elites / rank'},
+ {id:'materialyield2',branch:'Scavenging',name:'Resource Recovery',max:4,desc:'+8% material salvage yield / rank'},
+ {id:'mapsense',branch:'Tactics',name:'Cartographic Memory',max:4,desc:'Minimap exploration scan radius +1 tile / rank'}
+];
+for(let s of V53_SKILLS)if(!SKILLS.some(x=>x.id===s.id))SKILLS.push(s);
+const V53_BASE_EFFECTS=effects;
+effects=function(){let e=V53_BASE_EFFECTS(),s=profile.skills||{};return {...e,anomalyResist:(s.anomalyward||0)*.04,hazardResist2:(s.hazardward2||0)*.03,secureExtra:(s.securetraining||0),reforgeChance:(s.reforgechance||0)*.04,reforgeDiscount:(s.reforgediscount||0)*.08,gemMarketDiscount:(s.gemmerchant||0)*.05,traitSense:(s.traitfinder||0)*.12,consSave:(s.consserve||0)*.05,sidearmDamage:(s.sidearmexpert||0)*.04,eliteDamage2:(s.elitehunter2||0)*.04,materialYield2:(s.materialyield2||0)*.08,mapSense:(s.mapsense||0)}};
+// Trait Sense is intentionally a multiplier only on already-rare rolls.
+const V53_BASE_ROLL_TRAITS=rollSpecialTraitsV53;
+rollSpecialTraitsV53=function(i,r=Math.random){if(!i?.slot||i.specialTraitsV53?.length)return i;let ri=i.rarity||0,base=ri===5?.018:ri===6?.20:ri===7?.82:ri>=8?1:0,boost=1+(profile?(effects().traitSense||0):0);if(!base||!chance(Math.min(.98,base*boost),r)){i.specialTraitsV53=[];return i}let count=1;if(ri===6&&chance(.15,r))count=2;if(ri===7){if(chance(.45,r))count=2;if(count===2&&chance(.18,r))count=3}if(ri>=8)count=2+(chance(.55,r)?1:0);let pool=SPECIAL_TRAITS_V53.filter(t=>allowedForTraitV53(i,t));i.specialTraitsV53=[];while(i.specialTraitsV53.length<count&&pool.length){let ix=Math.floor(r()*pool.length);i.specialTraitsV53.push(pool.splice(ix,1)[0].id)}return i};
+
+// ---------- player stat integration: Anomaly / hazard / new affix fields ----------
+const V53_BASE_COMPUTE=computePlayerStats;
+computePlayerStats=function(fullHeal=false){let p=V53_BASE_COMPUTE(fullHeal),eq=Object.values(p.equipment||{}).filter(Boolean),e=effects(),anom=e.anomalyResist||0,haz=e.hazardResist2||0,secure=e.secureExtra||0;for(let i of eq){let gm=typeof itemGemModsV3==='function'?itemGemModsV3(i):{};anom+=finiteV53(i.anomalyResist)+finiteV53(gm.anomalyResist);haz+=finiteV53(i.hazardResist)+finiteV53(gm.hazardResist);secure+=finiteV53(gm.secure);if((i.specialTraitsV53||[]).includes('secure_fold'))secure+=1;if((i.specialTraitsV53||[]).includes('anomaly_lattice'))anom+=.15;p.creditBonus=(p.creditBonus||0)+finiteV53(i.creditBonus)+finiteV53(gm.creditBonus);p.eliteDamage=(p.eliteDamage||0)+finiteV53(i.eliteDamage)+finiteV53(gm.eliteDamage);p.masteryGain=(p.masteryGain||0)+finiteV53(i.masteryGain)+finiteV53(gm.masteryGain);p.energyOnHit=(p.energyOnHit||0)+finiteV53(i.energyOnHit)+finiteV53(gm.energyOnHit);p.anomalyDamage=(p.anomalyDamage||0)+finiteV53(i.anomalyDamage)+finiteV53(gm.anomalyDamage)}p.secureCap=Math.max(0,p.secureCap+secure);p.anomalyResist=clamp(anom,-.5,.70);p.hazardResist=clamp(haz,-.5,.75);return p};
+
+// ---------- mechanics hooks for special traits ----------
+const V53_BASE_DEAL=dealPlayerDamage;
+dealPlayerDamage=function(t,w){let ww=w,traits=w?.specialTraitsV53||[],p=raid.player;if(traits.length){ww={...w};let tile=raid.map.tiles[p.y]?.[p.x];if(traits.includes('last_round')&&w.mag&&(w.currentAmmo||0)===0)ww.damage=Math.round((ww.damage||0)*1.75);if(traits.includes('hazard_fury')&&['F','C','S','T','V','W','D'].includes(tile))ww.damage=Math.round((ww.damage||0)*1.45);if(traits.includes('anomaly_hunter')&&raid.operation?.kind==='anomaly')ww.damage=Math.round((ww.damage||0)*1.35);if(w?.slot==='sidearm'&&effects().sidearmDamage)ww.damage=Math.round((ww.damage||0)*(1+effects().sidearmDamage));if(traits.includes('phase_rounds'))ww.pen=(ww.pen||0)+20;if(raid.operation?.kind==='anomaly'&&p.anomalyDamage)ww.damage=Math.round((ww.damage||0)*(1+p.anomalyDamage));if(t.elite||t.boss)ww.damage=Math.round((ww.damage||0)*(1+(p.eliteDamage||0)+(effects().eliteDamage2||0)));if(traits.includes('warden_breaker')&&(t.elite||t.boss)){raid.specialUsesV53||={};let k=traitUseKeyV53('warden_breaker',t.id);if(!raid.specialUsesV53[k]){raid.specialUsesV53[k]=1;t.armor=Math.max(0,(t.armor||0)-12);logMsg('Warden Breaker strips 12 armor.','good')}}}
+ let before=t.hp,out=V53_BASE_DEAL(t,ww),dealt=Math.max(0,before-t.hp),killed=before>0&&t.hp<=0;if(dealt>0){if(p.energyOnHit)p.energy=Math.min(p.maxEnergy,p.energy+p.energyOnHit);if(traits.includes('shield_siphon'))p.barrierNow=Math.min(Math.max(p.barrier||0,25), (p.barrierNow||0)+Math.max(1,Math.round(dealt*.08)));if(traits.includes('shock_lock')&&t.hp>0&&chance(.14,raid.rng))addStatus(t,'stun',1,1);if(traits.includes('echo_chamber')&&t.hp>0){raid.specialUsesV53||={};let last=raid.specialUsesV53.echo_chamber_turn??-999;if(raid.turns-last>=6){raid.specialUsesV53.echo_chamber_turn=raid.turns;let d=Math.max(1,Math.round(dealt*.5));t.hp-=d;floatAt(t.x,t.y,`ECHO ${d}`,'#ffd6ff');if(t.hp<=0)killEnemy(t)}}if(traits.includes('ricochet_protocol')&&chance(.30,raid.rng)){let other=raid.enemies.filter(e=>e.hp>0&&e.id!==t.id&&dist(e,t)<=4).sort((a,b)=>dist(a,t)-dist(b,t))[0];if(other){let d=Math.max(1,Math.round(dealt*.35));other.hp-=d;floatAt(other.x,other.y,`RICO ${d}`,'#d8b7ff');if(other.hp<=0)killEnemy(other)}}}
+ if(killed){if(traits.includes('kill_reload')&&w.mag)w.currentAmmo=Math.min(w.mag,(w.currentAmmo||0)+1);if(traits.includes('kill_capacitor'))p.energy=Math.min(p.maxEnergy,p.energy+12);if(traits.includes('pyre_wake')&&chance(.28,raid.rng)&&raid.map.tiles[t.y]?.[t.x]!==undefined)raid.map.tiles[t.y][t.x]='F';if(traits.includes('toxic_wake')&&chance(.28,raid.rng)&&raid.map.tiles[t.y]?.[t.x]!==undefined)raid.map.tiles[t.y][t.x]='T'}return out};
+const V53_BASE_SHOOT=playerShoot;
+playerShoot=function(){let w=currentWeapon();if(w&&(w.specialTraitsV53||[]).includes('blood_trigger')&&raid?.player){let eff=weaponRuntimeV3(w),need=Math.max(2,Math.round((6+(eff.energyCost||0))*(1-(raid.player.energyCostReduction||0)-(eff.energyCostReduction||0))));if(raid.player.energy<need&&raid.player.hp>Math.ceil(raid.player.maxHp*.10)){let cost=Math.max(1,Math.round(raid.player.maxHp*.08));raid.player.hp-=cost;raid.player.energy=need;logMsg(`Blood Trigger converts ${cost} HP into firing energy.`,'bad')}}return V53_BASE_SHOOT()};
+const V53_BASE_RELOAD=playerReload;
+playerReload=function(){let w=currentWeapon();if(w?.mag&&(w.specialTraitsV53||[]).includes('ammo_alchemy')){let need=Math.max(0,(w.mag||0)-(w.currentAmmo||0)),correct=raid.player.bag.filter(i=>i.type==='ammo'&&i.ammoType===w.ammoType).reduce((a,i)=>a+i.qty,0);if(need>0&&!correct){let any=raid.player.bag.filter(i=>i.type==='ammo'&&(i.qty||0)>0),have=any.reduce((a,i)=>a+i.qty,0),loads=Math.min(need,Math.floor(have/2));if(loads>0)return commitTurn(()=>{let consume=loads*2;for(let s of any){let n=Math.min(consume,s.qty);s.qty-=n;consume-=n;if(!consume)break}raid.player.bag=raid.player.bag.filter(i=>i.qty!==0);w.currentAmmo=(w.currentAmmo||0)+loads;logMsg(`Ammo Alchemy converts mixed ammunition into ${loads} ${w.ammoType} rounds.`,'good')})}}return V53_BASE_RELOAD()};
+const V53_BASE_ENEMY_ATTACK=enemyAttack;
+enemyAttack=function(e){let p=raid.player,before=p.hp+(p.barrierNow||0),type=e.type,orig=e.damage;if(raid.operation?.kind==='anomaly')e.damage=orig*(1-clamp(p.anomalyResist||0,-.5,.70));let out=V53_BASE_ENEMY_ATTACK(e);e.damage=orig;let taken=Math.max(0,before-(p.hp+(p.barrierNow||0)));if(taken>0){if(hasTraitV53('adaptive_plating')){raid.adaptiveTypesV53||={};if(!raid.adaptiveTypesV53[type]){raid.adaptiveTypesV53[type]=1;p.resist[type]=(p.resist[type]||0)+15;logMsg(`Adaptive Plating calibrates +15 ${type} resistance.`,'good')}}if(p.hp>0&&hasTraitV53('phase_recoil')&&taken>=15&&chance(.25,raid.rng)){let spots=[];for(let y=p.y-3;y<=p.y+3;y++)for(let x=p.x-3;x<=p.x+3;x++)if(isWalkable(x,y)&&!enemyAt(x,y)&&dist(p,{x,y})>=2)spots.push({x,y});if(spots.length){let s=pick(spots,raid.rng);p.x=s.x;p.y=s.y;logMsg('Phase Recoil displaces the operator.','good')}}if(hasTraitV53('auto_trauma')&&p.hp>0&&p.hp/p.maxHp<.25&&markTraitOnceV53('auto_trauma')){let heal=Math.round(p.maxHp*.35);p.hp=Math.min(p.maxHp,p.hp+heal);logMsg(`Auto-Trauma restores ${heal} HP.`,'good')}}return out};
+const V53_BASE_ENV=environmentDamageV5;
+environmentDamageV5=function(raw,type,label){let p=raid?.player;if(!p)return V53_BASE_ENV(raw,type,label);if(hasTraitV53('ghost_step')){raid.hazardStepsV53=(raid.hazardStepsV53||0)+1;if(raid.hazardStepsV53%3===0){logMsg('Ghost Step phases through environmental damage.','good');return 0}}let beforeE=p.energy,out=V53_BASE_ENV(raw*(1-clamp(p.hazardResist||0,-.5,.75)),type,label);if(out>0&&hasTraitV53('hazard_converter'))p.energy=Math.min(p.maxEnergy,beforeE+Math.round(out*.35));return out};
+const V53_BASE_ELEMENT_STATUS=applyElementStatus;
+applyElementStatus=function(target,type,power=.2,fromPlayer=false){let before=target.statuses?.length||0,out=V53_BASE_ELEMENT_STATUS(target,type,power,fromPlayer);if(target===raid?.player&&!fromPlayer&&target.statuses.length>before&&hasTraitV53('status_purge')&&markTraitOnceV53('status_purge')){let beneficial=['focus','regen','cloak'];target.statuses=target.statuses.filter(s=>beneficial.includes(s.type));logMsg('Purity Kernel purges an incoming status.','good')}return out};
+if(typeof entropyTickV52==='function'){const V53_BASE_ENTROPY=entropyTickV52;entropyTickV52=function(){if(hasTraitV53('entropy_anchor')&&chance(.5,raid.rng)){logMsg('Entropy Anchor suppresses an entropy pulse.','good');return}return V53_BASE_ENTROPY()}}
+const V53_BASE_USE_ITEM=useRaidItem;
+useRaidItem=function(id){let p=raid.player,i=p.bag.find(x=>x.id===id),snap=i?deep(i):null,out=V53_BASE_USE_ITEM(id),saveChance=(hasTraitV53('supply_conservation')?.25:0)+(effects().consSave||0);if(snap&&chance(clamp(saveChance,0,.60),raid.rng)){let now=p.bag.find(x=>x.id===id);if(now)now.qty=(now.qty||0)+1;else mergeInto(p.bag,{...snap,qty:1});toast('Supply Conservation preserved the consumable','good')}return out};
+// Phoenix Protocol integrates at existing revive gate.
+if(typeof checkReviveV3==='function'){const V53_BASE_REVIVE=checkReviveV3;checkReviveV3=function(){if(raid?.player?.hp<=0&&hasTraitV53('phoenix_protocol')&&markTraitOnceV53('phoenix_protocol')){raid.player.hp=Math.max(1,Math.round(raid.player.maxHp*.30));raid.player.statuses=raid.player.statuses.filter(s=>!['burn','poison','bleed'].includes(s.type));logMsg('PHOENIX PROTOCOL // lethal damage rejected.','good');return true}return V53_BASE_REVIVE()}}
+// Blood Moon trait turn heal.
+const V53_BASE_OP_TURN=operationTurnEffectsV4;
+operationTurnEffectsV4=function(){let out=V53_BASE_OP_TURN();if(raid?.operation?.id==='bloodmoon'&&hasTraitV53('eclipse_reversal')){let phase=typeof bloodPhaseV51==='function'?bloodPhaseV51():'';if(String(phase).toLowerCase().includes('blood'))raid.player.hp=Math.min(raid.player.maxHp,raid.player.hp+2)}return out};
+
+// ---------- item details: type colors, anomaly/hazard stats, special traits ----------
+const V53_BASE_ITEM_STATS=itemStatRows;
+itemStatRows=function(i){let rows=V53_BASE_ITEM_STATS(i),cls=TYPE_COLOR_CLASS_V53[i?.type]||'';if(rows.length&&rows[0][0]==='Category')rows[0][2]=cls;if(i?.anomalyResist)rows.push(['Anomaly resistance',`${i.anomalyResist>0?'+':''}${Math.round(i.anomalyResist*100)}%`,i.anomalyResist>0?'good':'bad']);if(i?.hazardResist)rows.push(['Hazard resistance',`${i.hazardResist>0?'+':''}${Math.round(i.hazardResist*100)}%`,i.hazardResist>0?'good':'bad']);if(i?.anomalyDamage)rows.push(['Anomaly damage',`${i.anomalyDamage>0?'+':''}${Math.round(i.anomalyDamage*100)}%`,i.anomalyDamage>0?'good':'bad']);return rows};
+const V53_BASE_ITEM_MODAL=itemModal;
+itemModal=function(i,returnTo=null,startTab='details'){let out=V53_BASE_ITEM_MODAL(i,returnTo,startTab),defs=specialTraitDefsV53(i),m=$('#modal');if(m){let cat=m.querySelector('.item-category-v53');if(cat)cat.classList.add(TYPE_COLOR_CLASS_V53[i.type]||'');if(defs.length&&!m.querySelector('.specials-v53'))m.insertAdjacentHTML('beforeend',`<div class="specials-v53"><div class="sectiontitle"><h2>SPECIAL PROTOCOLS</h2><small>${defs.length}/3</small></div>${defs.map(t=>`<div class="special-trait-v53"><b>✦ ${t.name}</b><div class="muted">${t.desc}</div></div>`).join('')}</div>`)}return out};
+const V53_BASE_ITEM_CARD=itemCard;
+itemCard=function(i,actions='',extra=''){let chip=i?.specialTraitsV53?.length?`<span class="special-chip-v53">✦ ${i.specialTraitsV53.length} SPECIAL</span>`:'';return V53_BASE_ITEM_CARD(i,actions,`${extra||''}${chip}`)};
+const V53_BASE_RAID_STATS=raidStatsHTML;
+raidStatsHTML=function(){let h=V53_BASE_RAID_STATS();if(raid?.player)h=h.replace('<div class="sectiontitle"><h2>ACTIVE WEAPON</h2></div>',`<div class="sectiontitle"><h2>ANOMALY / HAZARD DEFENSE</h2></div><div class="card"><div class="spread"><span>◈ Anomaly resistance</span><b>${Math.round((raid.player.anomalyResist||0)*100)}%</b></div><div class="spread"><span>◇ Environmental hazard resistance</span><b>${Math.round((raid.player.hazardResist||0)*100)}%</b></div></div><div class="sectiontitle"><h2>ACTIVE WEAPON</h2></div>`);return h};
+
+// ---------- reforge system ----------
+let reforgeSlotsV53=[null,null,null],reforgeFilterV53='all';
+function reforgeFamilyV53(i){if(i?.type==='gem')return 'gem';if(i?.type==='key')return 'key';if(i?.slot)return 'equipment';return null}
+function reforgeQualityV53(i){let f=reforgeFamilyV53(i);return f==='gem'?(i.gemTier||1):f==='key'?(i.keyQuality||1):(i.rarity||0)+1}
+function reforgeEligibleV53(i){let f=reforgeFamilyV53(i),q=reforgeQualityV53(i);return !!f&&((f==='gem'&&q<7)||(f==='key'&&q<7)||(f==='equipment'&&q<8))}
+function reforgeCostV53(q){let base=[0,250,450,700,1100,1600,2200,3000][clamp(q,1,7)]||3000;return Math.max(0,Math.round(base*(1-clamp(effects().reforgeDiscount||0,0,.75))))}
+function reforgeChanceV53(q){let base=[0,.82,.77,.71,.64,.56,.47,.35][clamp(q,1,7)]||.35;return clamp(base+(effects().reforgeChance||0),.10,.92)}
+function reforgeSelectedItemsV53(){return reforgeSlotsV53.map(id=>id?profile.stash.find(i=>i.id===id):null)}
+function renderReforgeV53(){let items=reforgeSelectedItemsV53(),present=items.filter(Boolean),q=present.length?reforgeQualityV53(present[0]):null,same=present.every(i=>reforgeQualityV53(i)===q),cost=q?reforgeCostV53(q):0,chancePct=q?Math.round(reforgeChanceV53(q)*100):0;$('#main').innerHTML=`<div class="sectiontitle"><div><h2>REFORGE</h2><small>Combine 3 equal-quality items into one rerolled item with a chance to advance quality.</small></div><b>${present.length}/3</b></div><div class="grid">${[0,1,2].map(n=>{let i=items[n];return `<button class="reforge-slot-v53 ${i?'selected':''}" data-rslot="${n}">${i?itemCard(i):`<div><b>SLOT ${n+1}</b><div class="muted">Tap to choose from stash</div></div>`}</button>`}).join('')}</div><div class="sectiontitle"><h2>OUTCOME</h2></div><div class="reforge-result-v53"><div class="spread"><div><b>${q?`QUALITY ${q}`:'SELECT THREE ITEMS'}</b><div class="muted">All three inputs must have the same quality number. Item category is rolled from the three inputs, so 2 Charms + 1 Helmet = 66.7% Charm / 33.3% Helmet.</div></div><div><b class="good">${chancePct}% UPGRADE</b><div class="muted">Cost ¤${fmt(cost)}</div></div></div></div><div class="row" style="margin-top:10px"><button class="btn primary" id="doReforgeV53" ${present.length!==3||!same?'disabled':''}>REFORGE ${q?'¤'+fmt(cost):''}</button><button class="btn ghost" id="clearReforgeV53">CLEAR</button></div><div class="sectiontitle"><h2>RULES</h2></div><div class="card muted">Equipment, gems and keys can be reforged. Failure still creates one rerolled item at the original quality. Mythic equipment may upgrade to Ascendant for at most ¤3,000 before discounts. ROOTFORGED, T7 gems and Q7 keys are final tiers.</div>`;$$('[data-rslot]').forEach(b=>b.onclick=()=>reforgePickerV53(+b.dataset.rslot));$('#clearReforgeV53').onclick=()=>{reforgeSlotsV53=[null,null,null];renderReforgeV53()};$('#doReforgeV53').onclick=performReforgeV53}
+function reforgePickerV53(slot){let selected=reforgeSelectedItemsV53(),reference=selected.find(Boolean),needQ=reference?reforgeQualityV53(reference):null,filters=['all','weapon','armor','charm','implant','gem','key'];let list=profile.stash.filter(i=>reforgeEligibleV53(i)&&(needQ==null||reforgeQualityV53(i)===needQ)&&(reforgeFilterV53==='all'||i.type===reforgeFilterV53||i.slot===reforgeFilterV53));let used=new Set(reforgeSlotsV53.filter(Boolean));list=list.filter(i=>i.type==='gem'||!used.has(i.id));openModal(`<div class="modalhead"><div><h2>SELECT REFORGE INPUT</h2><div class="muted">${needQ?`Requires quality ${needQ}`:'First item sets the required quality.'}</div></div><button class="close" data-close>✕</button></div><div class="tabs">${filters.map(f=>`<button class="tab ${f===reforgeFilterV53?'active':''}" data-rfilter="${f}">${f.toUpperCase()}</button>`).join('')}</div><div class="grid">${list.map(i=>itemCard(i,`<button class="btn small primary choose-reforge-v53" data-id="${i.id}">SELECT</button>`)).join('')||'<div class="card empty">NO COMPATIBLE ITEMS</div>'}</div>`);$$('[data-rfilter]').forEach(b=>b.onclick=()=>{reforgeFilterV53=b.dataset.rfilter;closeModal();reforgePickerV53(slot)});$$('.choose-reforge-v53').forEach(b=>b.onclick=()=>{let id=b.dataset.id,i=profile.stash.find(x=>x.id===id);if(!i)return;if(i.type==='gem'){let already=reforgeSlotsV53.filter(x=>x===id).length;if((i.qty||1)<=already)return toast('Not enough gems in that stack','bad')}reforgeSlotsV53[slot]=id;closeModal();renderReforgeV53()})}
+function consumeReforgeUnitV53(id){let ix=profile.stash.findIndex(i=>i.id===id);if(ix<0)return null;let i=profile.stash[ix],unit=deep(i);unit.qty=1;if(i.type==='gem'&&(i.qty||1)>1)i.qty--;else profile.stash.splice(ix,1);return unit}
+function forceEquipmentRarityV53(rep,target,r){let old=rarityRoll;try{rarityRoll=()=>target;return genItem(Math.max(profile.level,rep.level||1)+1,rep.slot||rep.type,target,r)}finally{rarityRoll=old}}
+function makeReforgeOutputV53(rep,targetQ,r){let f=reforgeFamilyV53(rep);if(f==='gem')return makeGemV3(rep.gemKind||rep.kind||null,targetQ,1,r);if(f==='key')return makeKeyV4(targetQ,r);return forceEquipmentRarityV53(rep,targetQ-1,r)}
+function performReforgeV53(){let items=reforgeSelectedItemsV53();if(items.some(x=>!x))return toast('Fill all three slots','bad');let q=reforgeQualityV53(items[0]);if(!items.every(i=>reforgeQualityV53(i)===q))return toast('All three inputs must have equal quality','bad');let cost=reforgeCostV53(q);if(!devFreeV43()&&profile.credits<cost)return toast('Not enough credits','bad');confirmModal('Commit reforge?',`Consume all three items for a ${Math.round(reforgeChanceV53(q)*100)}% chance to advance quality?`,()=>{let units=reforgeSlotsV53.map(consumeReforgeUnitV53).filter(Boolean);if(units.length!==3)return toast('Reforge inputs changed','bad');if(!devFreeV43())profile.credits-=cost;let r=Math.random,success=chance(reforgeChanceV53(q),r),target=success?q+1:q,rep=pick(units,r),out=makeReforgeOutputV53(rep,target,r);profile.stash.push(out);profile.records.reforges=(profile.records.reforges||0)+1;if(success)profile.records.reforgeUpgrades=(profile.records.reforgeUpgrades||0)+1;reforgeSlotsV53=[null,null,null];save();showTab('reforge');itemModal(out,()=>showTab('reforge'));toast(success?`REFORGE UPGRADE // quality ${target}`:`Reforge stabilized at quality ${target}`,success?'good':'warn')})}
+
+// ---------- resource / gem market ----------
+let resourceMarketStockV53=[];
+function ensureResourceMarketV53(){let day=todayKey();profile.resourceMarketV53||={date:day,rerolls:0};if(profile.resourceMarketV53.date!==day)profile.resourceMarketV53={date:day,rerolls:0};if(!resourceMarketStockV53.length)resourceMarketStockV53=makeResourceMarketV53()}
+function materialQtyV53(k,r){let expensive=['core','prism','chronite'].includes(k),mid=['essence','phase','biomass','catalyst','circuit'].includes(k);return expensive?1+Math.floor(r()*3):mid?2+Math.floor(r()*7):6+Math.floor(r()*10)}
+function makeResourceMarketV53(){let r=seeded(dailySeed()+0x53A77+(profile.resourceMarketV53?.rerolls||0)*7919),keys=Object.keys(MATERIALS).sort(()=>r()-.5),mc=clamp(5+Math.floor(r()*6),5,Math.min(10,keys.length)),out=[];for(let k of keys.slice(0,mc))out.push(makeMaterial(k,materialQtyV53(k,r)));let gc=1+Math.floor(r()*7);for(let n=0;n<gc;n++)out.push(makeGemV3(null,gemTierRollV3(profile.level+Math.floor(r()*12),r),1,r));out.push(makeGemV3(null,5+Math.floor(r()*3),1,r));return out}
+function resourcePriceV53(i){let v=i.type==='material'?(MATERIALS[i.kind]?.value||i.value||1)*(i.qty||1):(i.value||effectiveItemValueV3?.(i)||100);let discount=i.type==='gem'?effects().gemMarketDiscount||0:0;return Math.max(1,Math.round(v*2*(1-clamp(discount,0,.50))))}
+function resourceRerollCostV53(){return 2000*Math.pow(2,profile.resourceMarketV53?.rerolls||0)}
+function renderResourceMarketV53(){ensureResourceMarketV53();let cost=resourceRerollCostV53();$('#main').innerHTML=`<div class="tabs"><button class="tab" id="nightV53">NIGHT MARKET</button><button class="tab" id="blackV53">BLACK MARKET</button><button class="tab active resource-market-badge-v53">RESONANCE EXCHANGE</button></div><div class="sectiontitle"><div><h2>RESONANCE EXCHANGE</h2><small>Materials and gems only · all offers cost 2× base value</small></div><button class="btn small ghost" id="resourceRerollV53">REROLL ${devFreeV43()?'FREE':'¤'+fmt(cost)}</button></div><div class="grid">${resourceMarketStockV53.map(i=>itemCard(i,`<button class="btn small primary resource-buy-v53" data-id="${i.id}">BUY ¤${fmt(resourcePriceV53(i))}</button><button class="btn small ghost inspect" data-id="${i.id}">DETAILS</button>`)).join('')}</div><div class="card muted" style="margin-top:10px">Each daily signal carries 5–10 material types and 2–8 random gems, plus one guaranteed T5–T7 gem. Rerolls reset daily and cost ¤2,000 → ¤4,000 → ¤8,000 → ...</div>`;$('#nightV53').onclick=()=>{traderViewV4='night';renderTrader()};$('#blackV53').onclick=()=>{traderViewV4='black';renderTrader()};$('#resourceRerollV53').onclick=()=>{if(!devFreeV43()&&profile.credits<cost)return toast('Not enough credits','bad');if(!devFreeV43())profile.credits-=cost;profile.resourceMarketV53.rerolls++;resourceMarketStockV53=makeResourceMarketV53();save();renderResourceMarketV53();toast('Resonance inventory rerolled','good')};$$('.resource-buy-v53').forEach(b=>b.onclick=()=>{let ix=resourceMarketStockV53.findIndex(i=>i.id===b.dataset.id),i=resourceMarketStockV53[ix];if(!i)return;let price=resourcePriceV53(i);if(!devFreeV43()&&profile.credits<price)return toast('Not enough credits','bad');if(!devFreeV43())profile.credits-=price;mergeInto(profile.stash,deep(i));resourceMarketStockV53.splice(ix,1);save();renderResourceMarketV53();toast('Purchase transferred to stash','good')});bindItemInspect()}
+const V53_BASE_RENDER_TRADER=renderTrader;
+renderTrader=function(){if(traderViewV4==='resource')return renderResourceMarketV53();V53_BASE_RENDER_TRADER();let tabs=$('#main .market-tabs')||$('#main .tabs');if(tabs&&!$('#resourceMarketTabV53')){tabs.insertAdjacentHTML('beforeend','<button id="resourceMarketTabV53" class="tab resource-market-badge-v53">RESONANCE EXCHANGE</button>');$('#resourceMarketTabV53').onclick=()=>{traderViewV4='resource';renderTrader()}}};
+const V53_BASE_BIND_INSPECT=bindItemInspect;
+bindItemInspect=function(){V53_BASE_BIND_INSPECT();$$('.inspect').forEach(b=>{let old=b.onclick;b.onclick=()=>{let all=[...profile.stash,...Object.values(profile.loadout||{}),...profile.pack,...profile.keyring,...shopStock,...(typeof blackMarketStockV4!=='undefined'?blackMarketStockV4:[]),...resourceMarketStockV53],i=all.find(x=>x?.id===b.dataset.id);if(i)itemModal(i);else old?.()}})};
+
+// ---------- contract/bounty item rewards + ROOT as fourth tab ----------
+function rewardItemRarityV53(q,kind='contract'){let score=kind==='bounty'?(q.targetFloor||4):Math.max(1,Math.round((q.goal||1)/3)),ri=score>=8?5:score>=5?4:3;return clamp(ri,3,7)}
+function ensureRewardItemV53(q,kind){if(!q?.reward||q.reward.itemRollV53!==undefined)return;let r=seeded(Array.from(String(q.id)).reduce((a,c)=>((a*33)^c.charCodeAt(0))>>>0,5381));q.reward.itemRollV53=r()<.5;if(q.reward.itemRollV53)q.reward.itemRarityV53=rewardItemRarityV53(q,kind)}
+function grantRewardItemV53(q){if(!q?.reward?.itemRollV53)return null;let ri=clamp(q.reward.itemRarityV53||3,3,7),item=genItem(profile.level+ri+2,null,ri,Math.random);profile.stash.push(item);return item}
+const V53_BASE_GEN_DAILY=generateDailyContracts;
+generateDailyContracts=function(){let a=V53_BASE_GEN_DAILY();a.forEach(q=>ensureRewardItemV53(q,'contract'));return a};
+const V53_BASE_GEN_BOUNTIES=generateBountiesV4;
+generateBountiesV4=function(){let a=V53_BASE_GEN_BOUNTIES();a.forEach(q=>ensureRewardItemV53(q,'bounty'));return a};
+function rootContractHTMLV53(){let targets=rootProtocolTargetsV52(),prog=rootProtocolProgressV52(),done=rootProtocolCompleteV52(),rows=targets.map(t=>`<div class="root-sub-v52"><div><b>${t.icon} ${t.name}</b><div class="muted">${t.goal}</div></div><b class="${profile.rootProtocolV52.extracted[t.id]?'good':'muted'}">${profile.rootProtocolV52.extracted[t.id]?'✓ COMPLETE':'○ PENDING'}</b></div>`).join('');return `<div class="sectiontitle"><h2>VOID // PERMANENT PROTOCOL</h2><small>${prog.done}/${prog.total}</small></div><div class="card root-contract-v52 root-contract-v53 ${done?'complete':''}"><div class="spread"><div><b>${done?'VOID//ROOT ACCESS GRANTED':'EXTRACTION COMPLETION PROTOCOL'}</b><p class="muted">Extract from every built-in operation requirement. Multi-floor sectors require the deepest floor; Endless requires wave 25+.</p></div><b class="${done?'good':'warn'}">${done?'UNLOCKED':`${prog.done}/${prog.total}`}</b></div><div class="bar"><i style="width:${prog.total?prog.done/prog.total*100:0}%"></i></div><div style="margin-top:10px">${rows}</div></div>`}
+const V53_BASE_RENDER_CONTRACTS=renderContracts;
+renderContracts=function(){
+ if(contractViewV4==='root'){$('#main').innerHTML=`<div class="contract-tabs tabs"><button class="tab" data-contractview="daily">CONTRACTS</button><button class="tab" data-contractview="bounty">BOUNTIES</button><button class="tab" data-contractview="auction">AUCTIONS</button><button class="tab active" data-contractview="root">VOID</button></div>${rootContractHTMLV53()}`;$$('[data-contractview]').forEach(b=>b.onclick=()=>{contractViewV4=b.dataset.contractview;renderContracts()});return}
+ V53_BASE_RENDER_CONTRACTS();
+ // remove the old v5.2 protocol inserted above the categories
+ let rc=$('.root-contract-v52');if(rc){let prev=rc.previousElementSibling;if(prev?.classList.contains('sectiontitle'))prev.remove();rc.remove()}
+ let tabs=$('.contract-tabs');if(tabs&&!tabs.querySelector('[data-contractview="root"]'))tabs.insertAdjacentHTML('beforeend','<button class="tab" data-contractview="root">VOID</button>');$$('[data-contractview]').forEach(b=>b.onclick=()=>{contractViewV4=b.dataset.contractview;renderContracts()});
+ for(let q of profile.contracts||[]){ensureRewardItemV53(q,'contract');if(q.reward?.itemRollV53){let card=$(`.claim[data-id="${q.id}"]`)?.closest('.card')||[...$$('.quest')].find(c=>c.textContent.includes(q.name));if(card&&!card.querySelector('.reward-item-v53'))card.insertAdjacentHTML('beforeend',`<div class="reward-item-v53">✦ Unknown ${RARITIES[q.reward.itemRarityV53]?.name||'Epic'}+ equipment item</div>`)}}
+ for(let q of profile.bounties||[]){ensureRewardItemV53(q,'bounty');if(q.reward?.itemRollV53){let btn=$(`.claim-bounty[data-id="${q.id}"]`)||$(`.track-bounty[data-id="${q.id}"]`),card=btn?.closest('.card');if(card&&!card.querySelector('.reward-item-v53'))card.insertAdjacentHTML('beforeend',`<div class="reward-item-v53">✦ Unknown ${RARITIES[q.reward.itemRarityV53]?.name||'Epic'}+ bounty equipment</div>`)}}
+ $$('.claim').forEach(b=>b.onclick=()=>{let q=profile.contracts.find(x=>x.id===b.dataset.id);if(!q||q.progress<q.goal||profile.claimed.includes(q.id))return;profile.credits+=q.reward.credits||0;profile.shards+=q.reward.shards||0;gainXP(q.reward.xp||0);let item=grantRewardItemV53(q);profile.claimed.push(q.id);save();renderContracts();toast(item?`Contract claimed + ${RARITIES[item.rarity].name} item`:'Contract reward claimed','good')})
+};
+const V53_BASE_CLAIM_BOUNTY=claimBountyV4;
+claimBountyV4=function(id){let q=profile.bounties.find(x=>x.id===id);if(!q||!q.completed||q.claimed)return V53_BASE_CLAIM_BOUNTY(id);ensureRewardItemV53(q,'bounty');let had=q.reward.itemRollV53,out=V53_BASE_CLAIM_BOUNTY(id);if(had){let item=grantRewardItemV53(q);save();toast(`Bounty bonus: ${RARITIES[item.rarity].name} equipment`,'good')}return out};
+
+// ---------- sector enemy spectrum descriptions ----------
+function enemySpectrumV53(op){if(['rally','treasure'].includes(op.kind))return [{name:'NO ENEMIES',color:'#76f59a'}];let types=[];for(let e of ENEMY_TYPES){let zone=op.enemyZone||op.id,match=e.zones?.includes(zone);if(match&&!types.includes(e.type))types.push(e.type)}if(!types.length)types=(op.hazards||[]).filter(x=>DT[x]).slice(0,4);if(!types.length)types=['kinetic'];return types.map(t=>({name:DT[t]?.name||String(t).toUpperCase(),color:DT[t]?.color||'#fff'}))}
+const V53_BASE_OP_CARDS=operationCardsV44;
+operationCardsV44=function(list){return list.map(o=>{let selected=profile.selectedOperation===o.operationId,steps=extractionStepsForOperationV41(o,1),spect=enemySpectrumV53(o).map(x=>`<span style="color:${x.color}">${x.name}</span>`).join(''),kind=o.id==='void_root'?'ROOT':o.kind.toUpperCase();return `<div class="card operation-card ${selected?'selected':''}" style="color:${o.color}"><div class="spread"><div><div class="operation-meta"><span class="modebadge ${o.kind==='endless'?'endless':o.kind==='anomaly'?'anomaly':o.kind==='standard'?'':'special'}">${kind}</span><span class="modebadge">${Number.isFinite(o.maxFloor)?o.maxFloor+' FLOOR'+(o.maxFloor===1?'':'S'):'INFINITE'}</span><span class="modebadge">EXTRACT ${steps} STEPS</span></div><b>${o.icon} ${o.name}</b><p class="muted">${o.desc}</p><div class="enemy-spectrum-v53">${spect}</div><div class="operation-rules">${o.rules.map(x=>`<span>◆ ${x}</span>`).join('')}<span>◆ Loot curve: ${operationLootCurveV41(o)}</span></div></div><button class="btn small ${selected?'primary':'ghost'} choose-operation" data-operation="${o.operationId}" ${selected?'disabled':''}>${selected?'SELECTED':'SELECT'}</button></div></div>`}).join('')};
+
+// ---------- death risk option ----------
+function totalLossV53(){return !!profile.settings?.totalLossV53}
+const V53_BASE_RENDER_RECORDS=renderRecords;
+renderRecords=function(){V53_BASE_RENDER_RECORDS();let settingsHeader=[...$$('.sectiontitle h2')].find(h=>h.textContent.trim()==='SETTINGS')?.closest('.sectiontitle');if(settingsHeader&&!$('#totalLossToggleV53'))settingsHeader.insertAdjacentHTML('beforebegin',`<div class="card spread total-loss-v53"><div><b>TOTAL LOSS MODE</b><div class="muted">OFF = normal rules. ON = a real raid death additionally destroys all stash items, current equipment, packed items, protected keys, materials, credits and shards. Level, skills, mastery, records and Legacy remain.</div><div class="danger-note-v53">This is intentionally severe. God Mode still prevents the death from occurring.</div></div><button id="totalLossToggleV53" class="toggle ${totalLossV53()?'on':''}"><i></i></button></div>`);$('#totalLossToggleV53')?.addEventListener('click',()=>{profile.settings.totalLossV53=!totalLossV53();save();renderRecords();toast(`Total Loss Mode ${totalLossV53()?'ENABLED':'disabled'}`,totalLossV53()?'bad':'good')})};
+function wipeEconomyV53(){profile.credits=0;profile.shards=0;profile.stash=[];profile.pack=[];profile.loadout={};profile.keyring=[];for(let k of Object.keys(profile.materials||{}))profile.materials[k]=0}
+
+// ---------- persistent raid save/resume ----------
+const RAID_SAVE_KEY_V53=SAVE_KEY+'_raid_v53';
+function savedRaidV53(){try{let x=JSON.parse(localStorage.getItem(RAID_SAVE_KEY_V53)||'null');return x?.raid?.player&&x?.raid?.map?x:null}catch(e){return null}}
+function clearSavedRaidV53(){try{localStorage.removeItem(RAID_SAVE_KEY_V53)}catch(e){}}
+function saveRaidSnapshotV53(){if(!raid?.active)return false;let copy=JSON.parse(JSON.stringify(raid));copy.rng=null;let snap={version:V53_VERSION,savedAt:Date.now(),elapsedMs:Math.max(0,Date.now()-(raid.startTime||Date.now())),raid:copy};try{localStorage.setItem(RAID_SAVE_KEY_V53,JSON.stringify(snap));return true}catch(e){toast('Raid save failed: browser storage full','bad');return false}}
+function restoreRaidFromSnapshotV53(snap){if(!snap?.raid)return false;raid=snap.raid;raid.active=true;raid.operation=resolveOperationV4(raid.operation?.operationId||raid.operation?.id);raid.rng=seeded(((raid.seed||1)^((raid.floor||1)*991)^((raid.turns||0)*2654435761))>>>0);raid.startTime=Date.now()-(snap.elapsedMs||0);raid.timeline||=[];raid.props||=[];raid.enemies||=[];raid.ground||={};raid.player.statuses||=[];$('#shell').classList.add('hidden');$('#report').classList.add('hidden');$('#raid').classList.remove('hidden');closeModal();resizeCanvas();updateFOV();updateRaidUI();if(typeof startLoop==='function')startLoop();toast('Saved raid resumed','good');return true}
+function resumeSavedRaidV53(){let s=savedRaidV53();if(!s)return toast('No saved raid','bad');restoreRaidFromSnapshotV53(s)}
+function abandonSavedRaidV53(){let s=savedRaidV53();if(!s)return;confirmModal('Abandon saved raid?','The saved raid will be restored and ended as a failed extraction.',()=>{restoreRaidFromSnapshotV53(s);clearSavedRaidV53();setTimeout(()=>endRaid(false,'ABANDONED SAVE'),40)})}
+const V53_BASE_RAID_MENU=raidMenuModal;
+raidMenuModal=function(){openModal(`<div class="modalhead"><h2>RAID MENU</h2><button class="close" data-close>✕</button></div><div class="stack"><button class="btn" id="resumeRaid">RESUME</button><button class="btn primary" id="saveExitRaidV53">SAVE RAID & EXIT</button><button class="btn ghost" id="manualRaid">FIELD MANUAL</button><button class="btn danger" id="abandonRaid">ABANDON RAID</button></div><p class="muted">Save & Exit stores the complete active raid locally so it can be continued after closing the page. Starting another raid is blocked until the save is resumed or abandoned.</p>`);$('#resumeRaid').onclick=closeModal;$('#manualRaid').onclick=manualModal;$('#saveExitRaidV53').onclick=()=>{if(!saveRaidSnapshotV53())return;raid.active=false;cancelAnimationFrame(raf);closeModal();$('#raid').classList.add('hidden');$('#shell').classList.remove('hidden');raid=null;showTab('home');toast('Raid saved locally','good')};$('#abandonRaid').onclick=()=>confirmModal('Abandon raid?','All unsecured items will be lost.',()=>{clearSavedRaidV53();endRaid(false,'ABANDONED')})};
+const V53_BASE_START_RAID=startRaid;
+startRaid=function(...args){if(savedRaidV53())return toast('A saved raid exists. Resume or abandon it from Hideout first.','bad');return V53_BASE_START_RAID(...args)};
+const V53_BASE_RENDER_HOME=renderHome;
+renderHome=function(){V53_BASE_RENDER_HOME();let s=savedRaidV53();if(s&&!$('#savedRaidCardV53')){let op=s.raid?.operation,hero=$('#main .hero');hero?.insertAdjacentHTML('afterend',`<div id="savedRaidCardV53" class="card saved-raid-v53"><div class="spread"><div><div class="muted">SAVED RAID // ${new Date(s.savedAt).toLocaleString()}</div><b>${op?.icon||'◇'} ${op?.name||op?.id||'UNKNOWN OPERATION'}</b><div class="muted">${op?.kind==='endless'?`Wave ${s.raid.wave||1}`:`Floor ${s.raid.floor||1}`} · Turn ${s.raid.turns||0}</div></div><div class="row"><button class="btn primary" id="resumeSavedRaidV53">RESUME RAID</button><button class="btn danger" id="abandonSavedRaidV53">ABANDON SAVE</button></div></div></div>`);$('#resumeSavedRaidV53').onclick=resumeSavedRaidV53;$('#abandonSavedRaidV53').onclick=abandonSavedRaidV53}};
+
+// ---------- cache/key special protocols ----------
+if(typeof unlockWithKeyV4==='function'){
+ const V53_BASE_UNLOCK_KEY=unlockWithKeyV4;
+ unlockWithKeyV4=function(prop,keyId,kind){let key=(typeof currentRaidKeysV4==='function'?currentRaidKeysV4():[]).find(k=>k.id===keyId),before=Number(key?.keyUses??key?.uses??0),wasOpen=!!prop?.opened,out=V53_BASE_UNLOCK_KEY(prop,keyId,kind),after=Number(key?.keyUses??key?.uses??0);if(!wasOpen&&prop?.opened&&key&&after<before&&traitItemV53('lock_whisper')&&markTraitOnceV53('lock_whisper')){if(key.keyUses!=null)key.keyUses=before;else key.uses=before;logMsg('Lock Whisper preserves the exact key use.','good');toast('LOCK WHISPER // key use refunded','good')}return out}
+}
+if(typeof openLockedContainerV4==='function'){
+ const V53_BASE_OPEN_LOCKED=openLockedContainerV4;
+ openLockedContainerV4=function(prop,...args){let was=!!prop?.opened,out=V53_BASE_OPEN_LOCKED(prop,...args);if(!was&&prop?.opened&&traitItemV53('scavenger_echo')&&markTraitOnceV53('scavenger_echo')){dropItem(prop.x,prop.y,rollLoot());logMsg('Scavenger Echo reveals additional loot.','good')}return out}
+}
+const V53_BASE_PLAYER_INTERACT_CACHE=playerInteract;
+playerInteract=function(){let prop=raid?.active?propAt(raid.player.x,raid.player.y):null,eligible=prop&&['cache','annex_cache'].includes(prop.type)&&!prop.opened&&!prop.looted,out=V53_BASE_PLAYER_INTERACT_CACHE();if(eligible&&(prop.opened||prop.looted)&&traitItemV53('scavenger_echo')&&markTraitOnceV53('scavenger_echo')){dropItem(prop.x,prop.y,rollLoot());logMsg('Scavenger Echo reveals additional loot.','good')}return out};
+
+// ---------- endRaid: clear save, death recovery trait, and optional total loss ----------
+function profileHasItemIdV53(id){return [...(profile.stash||[]),...(profile.pack||[]),...Object.values(profile.loadout||{}),...(profile.keyring||[])].some(i=>i?.id===id)}
+const V53_BASE_END_RAID=endRaid;
+endRaid=function(success,reason='KIA'){
+ let wasActive=!!raid?.active,rescues=[];
+ if(wasActive&&!success&&!totalLossV53()&&traitItemV53('death_cache')){let carrier=traitItemV53('death_cache');if(carrier)rescues.push(deep(carrier));let bag=(raid.player?.bag||[]).filter(i=>i?.id!==carrier?.id);if(bag.length)rescues.push(deep(pick(bag)))}
+ let out=V53_BASE_END_RAID(success,reason),ended=wasActive&&!raid?.active; // God mode can suppress KIA and leave raid active
+ if(ended)clearSavedRaidV53();
+ if(ended&&!success&&totalLossV53()){wipeEconomyV53();save();toast('TOTAL LOSS // stash, gear and economy destroyed','bad')}
+ else if(ended&&!success&&rescues.length){for(let i of rescues)if(!profileHasItemIdV53(i.id))mergeInto(profile.stash,i);save();toast(`LAST CARRIER // ${rescues.length} item${rescues.length===1?'':'s'} recovered`,'good')}
+ return out
+};
+
+// ---------- resource and special-trait item values ----------
+const V53_BASE_NORMALIZE=normalizeItem;
+normalizeItem=function(i){i=V53_BASE_NORMALIZE(i);if(!i)return i;i.specialTraitsV53=Array.isArray(i.specialTraitsV53)?i.specialTraitsV53.filter(id=>SPECIAL_TRAITS_V53.some(t=>t.id===id)).slice(0,3):[];if(i.type==='gem'){let d=gemDefV3(i),sc=GEM_TIER_SCALE_V3[(i.gemTier||1)-1]||1;i.value=Math.max(i.value||0,Math.round((d?.baseValue||60)*sc*2))}return i};
+
+// ---------- new crafting recipes ----------
+const V53_RECIPES=[
+ {id:'v53-anomaly-gem',name:'T4 Anomaly Amber',out:()=>makeGemV3('anomaly_amber',4),cost:{essence:7,prism:1,circuit:4}},
+ {id:'v53-hazard-gem',name:'T4 Hazard Glass',out:()=>makeGemV3('hazard_glass',4),cost:{essence:6,catalyst:4,cloth:5}},
+ {id:'v53-sidearm-epic',name:'Calibrated Epic Sidearm',out:()=>genItem(profile.level+6,'sidearm',3),cost:{scrap:12,circuit:8,essence:5}},
+ {id:'v53-sidearm-relic',name:'Relic Sidearm Prototype',out:()=>genItem(profile.level+12,'sidearm',5),cost:{scrap:24,circuit:14,essence:12,prism:2}},
+ {id:'v53-phase',name:'Phase Filament Bundle',out:()=>makeMaterial('phase',3),cost:{circuit:4,essence:3}},
+ {id:'v53-biomass',name:'Reactive Biomass Culture',out:()=>makeMaterial('biomass',3),cost:{cloth:4,catalyst:3}},
+ {id:'v53-chronite',name:'Chronite Distillation',out:()=>makeMaterial('chronite',2),cost:{essence:5,prism:1}},
+ {id:'v53-anomaly-armor',name:'Anomaly-Warded Armor',out:()=>{let i=genItem(profile.level+8,'armor',4);i.anomalyResist=(i.anomalyResist||0)+.10;return i},cost:{scrap:14,cloth:10,phase:3,essence:6}},
+ {id:'v53-hazard-armor',name:'Hazard-Sealed Armor',out:()=>{let i=genItem(profile.level+7,'armor',4);i.hazardResist=(i.hazardResist||0)+.10;return i},cost:{scrap:12,cloth:12,biomass:3,catalyst:4}},
+ {id:'v53-t6gem',name:'Astral Gem Synthesis',out:()=>makeGemV3(null,6),cost:{essence:18,prism:4,chronite:2}},
+ {id:'v53-t7gem',name:'Singularity Gem Synthesis',out:()=>makeGemV3(null,7),cost:{essence:30,prism:8,core:3,chronite:4}},
+ {id:'v53-q6',name:'Apex Q6 Key Fabrication',out:()=>makeKeyV4(6),cost:{scrap:20,circuit:18,prism:3,phase:2}},
+ {id:'v53-q7',name:'Singularity Q7 Key Fabrication',out:()=>makeKeyV4(7),cost:{scrap:30,circuit:24,prism:6,chronite:3}},
+ {id:'v53-reforge-cache',name:'Reforge Supply Cache',out:()=>genItem(profile.level+10,null,5),cost:{scrap:15,essence:8,phase:2,biomass:2}}
+];
+for(let r of V53_RECIPES)if(!RECIPES.some(x=>x.id===r.id))RECIPES.push(r);
+if(typeof RECIPE_DESCRIPTIONS_V42!=='undefined')Object.assign(RECIPE_DESCRIPTIONS_V42,{
+ 'v53-anomaly-gem':'Crafts a Prismatic Anomaly Amber for defending against Anomaly-sector enemies.',
+ 'v53-hazard-gem':'Crafts a Prismatic Hazard Glass for reducing environmental damage.',
+ 'v53-sidearm-epic':'Builds an Epic-or-better sidearm from the expanded compact weapon pool.',
+ 'v53-sidearm-relic':'Builds a Relic-or-better high-level sidearm prototype.',
+ 'v53-phase':'Converts circuitry and essence into Phase Filament used by anomaly equipment.',
+ 'v53-biomass':'Cultures Reactive Biomass used for adaptive survival equipment.',
+ 'v53-chronite':'Produces Chronite Dust used by top-tier temporal and gem crafting.',
+ 'v53-anomaly-armor':'Creates Legendary-or-better armor with an additional 10% Anomaly resistance.',
+ 'v53-hazard-armor':'Creates Legendary-or-better armor with an additional 10% hazard resistance.',
+ 'v53-t6gem':'Creates one random Astral T6 gem.',
+ 'v53-t7gem':'Creates one random Singularity T7 gem.',
+ 'v53-q6':'Manufactures an exact-quality Q6 Apex key.',
+ 'v53-q7':'Manufactures an exact-quality Q7 Singularity key.',
+ 'v53-reforge-cache':'Produces a Relic-or-better equipment item for high-end reforge workflows.'
+});
+
+// ---------- workshop salvage material yield skill ----------
+if(typeof salvageItem==='function'){const V53_BASE_SALVAGE=salvageItem;salvageItem=function(id){let before=deep(profile.materials),out=V53_BASE_SALVAGE(id),bonus=effects().materialYield2||0;if(bonus>0)for(let k of Object.keys(profile.materials)){let gained=(profile.materials[k]||0)-(before[k]||0);if(gained>0)profile.materials[k]+=Math.floor(gained*bonus)}save();return out}}
+
+// ---------- skills persistent point banner ----------
+const V53_BASE_RENDER_SKILLS=renderSkills;
+renderSkills=function(){V53_BASE_RENDER_SKILLS();let main=$('#main');if(main&&!$('#skillPointsV53'))main.insertAdjacentHTML('afterbegin',`<div id="skillPointsV53" class="skill-points-v53 spread"><div><b>AVAILABLE SKILL POINTS</b><div class="muted">Levels grant 3 points. Reset remains available below.</div></div><b class="cyan" style="font-size:22px">${profile.skillPoints||0}</b></div>`)};
+
+// ---------- show Reforge tab through showTab ----------
+const V53_BASE_SHOW_TAB=showTab;
+showTab=function(tab){if(tab==='reforge'){currentTab=tab;$$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));renderReforgeV53();$('#main').scrollTop=0;return}return V53_BASE_SHOW_TAB(tab)};
+
+// ---------- save migration ----------
+const V53_BASE_MIGRATE=migrate;
+migrate=function(){V53_BASE_MIGRATE();profile.version=Math.max(Number(profile.version)||1,V53_VERSION);profile.settings||={};profile.settings.totalLossV53??=false;profile.resourceMarketV53||={date:todayKey(),rerolls:0};profile.records.reforges??=0;profile.records.reforgeUpgrades??=0;for(let k of Object.keys(MATERIALS))profile.materials[k]??=0;for(let q of profile.contracts||[])ensureRewardItemV53(q,'contract');for(let q of profile.bounties||[])ensureRewardItemV53(q,'bounty');for(let i of [...(profile.stash||[]),...(profile.pack||[]),...Object.values(profile.loadout||{}),...(profile.keyring||[])])if(i)normalizeItem(i)};
+
+// ---------- updated manual ----------
+const V53_BASE_MANUAL=manualModal;
+manualModal=function(){let points=[
+ ['1 // RAID LOOP','Prepare a loadout, choose an operation, explore, defeat the mandatory Warden/objective and extract. Deeper or stranger operations reward better loot but add mechanical danger.'],
+ ['2 // SAVE & EXIT','Open T / Raid Menu and choose SAVE RAID & EXIT. The exact raid can be resumed later. You cannot begin another raid while a saved raid exists.'],
+ ['3 // REFORGE','Reforge consumes three equal-quality equipment/gems/keys. The output category is weighted by your three inputs and may advance one quality tier.'],
+ ['4 // SPECIAL PROTOCOLS','Relic+ equipment can rarely contain 1–3 game-changing Special Protocols. They are separate from ordinary green/red modifiers.'],
+ ['5 // ANOMALY DEFENSE','Anomaly resistance reduces enemy damage in all Anomaly sectors. Hazard resistance reduces environmental damage. Both can appear on gear and gems.'],
+ ['6 // GEMS','All seven gem tiers can roll additional bonus facets. High tiers can roll several. Socket effects stay attached to equipment through raids and saves.'],
+ ['7 // MARKETS','Night Market sells general gear, Black Market sells restricted goods, and Resonance Exchange sells materials and gems at premium prices.'],
+ ['8 // CONTRACTS','Contracts and Bounties can award unknown Epic+ equipment in addition to normal currency/XP rewards. Auctions remain item-submission orders.'],
+ ['9 // VOID PROTOCOL','Contracts → VOID contains the permanent ROOT checklist. Complete every required built-in extraction to unlock VOID//ROOT; DEV mode bypasses it for testing.'],
+ ['10 // MINIMAP','The minimap shows explored corridors plus extraction/stairs only. Tap it to expand. On phones it stays at the upper-right of the tactical view.'],
+ ['11 // DEATH RULES','Normal death follows extraction-game loss rules. Optional Total Loss Mode in Records additionally wipes stash, equipment and currency after a real death.'],
+ ['12 // KEYS','Exact lock quality is required. Q3+ cannot be brute-forced. Depleted protected keys auto-unequip after raids.'],
+ ['13 // SECURE POUCH','Secure-pouch contents survive normal death. Some modifiers and gems can increase pouch capacity, but individual bonuses are deliberately small.'],
+ ['14 // DAMAGE','Kinetic, Fire, Cold, Shock, Toxic and Void interact with armor/resistance/statuses. Anomaly resistance is an additional sector-wide enemy defense.'],
+ ['15 // SPECIAL TRAITS','Special Protocols can change reloads, hazard behavior, death prevention, loot duplication, key consumption, status handling and other core rules.'],
+ ['16 // DEV TOOLS','DEV mode removes currency/skill costs and unlocks ROOT for testing. God Mode prevents lethal death; Total Loss therefore does not trigger while death is prevented.']
+ ];openModal(`<div class="modalhead"><div><h2>FIELD MANUAL v5.3</h2><div class="muted">Forge & Persistence</div></div><button class="close" data-close>✕</button></div><div class="stack">${points.map(([h,p])=>`<div class="card"><b>${h}</b><p class="muted">${p}</p></div>`).join('')}</div>`)};
+
+/* ======================= END VOID EXTRACTOR v5.3 ======================= */
 
 boot();
 </script>
