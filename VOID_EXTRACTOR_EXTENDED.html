@@ -3115,6 +3115,78 @@ showTab=function(tab){if(tab==='stats'){currentTab=tab;$$('.navbtn').forEach(b=>
 const V54_BASE_MIGRATE=migrate;
 migrate=function(){V54_BASE_MIGRATE();profile.version=Math.max(Number(profile.version)||1,V54_VERSION);profile.records||={};profile.records.maxThreatExtracted??=0;for(let r of RECIPES)if(!r.cat)r.cat=V54_RECIPE_CATS[r.id]||'Equipment'};
 
+
+
+/* ======================= v5.4 WORKSHOP HOTFIX ======================= */
+// Final authoritative Workshop implementation. This intentionally overrides all
+// earlier renderWorkshop()/craft() versions accumulated through previous updates.
+function workshopCategoryHotfixV54(r){
+ if(r?.cat)return String(r.cat);
+ const id=String(r?.id||'');
+ if(id.includes('gem'))return 'Gem Forge';
+ if(id.includes('ammo'))return 'Ammunition';
+ if(id.includes('key')||id.includes('q6')||id.includes('q7'))return 'Keys';
+ if(id.includes('med')||id.includes('stim')||id.includes('serum')||id.includes('inject')||id.includes('capsule')||id.includes('beacon')||id.includes('tonic')||id.includes('plate')||id.includes('patch')||id.includes('cloak')||id.includes('barrier'))return 'Supplies';
+ if(id.includes('phase')||id.includes('biomass')||id.includes('chronite'))return 'Materials';
+ return 'Equipment';
+}
+function workshopMatNameHotfixV54(k){return MATERIALS?.[k]?.name||String(k).replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}
+function workshopMatColorHotfixV54(k){try{return MATERIAL_COLORS_V43?.[k]||'#d7c5c8'}catch(e){return '#d7c5c8'}}
+function workshopRecipeDescHotfixV54(r){try{return typeof recipeDescriptionV42==='function'?recipeDescriptionV42(r):(r?.desc||'Craft this item from Workshop materials.')}catch(e){return r?.desc||'Craft this item from Workshop materials.'}}
+function workshopCostHTMLHotfixV54(r){
+ return Object.entries(r?.cost||{}).map(([k,v])=>{let have=Number(profile.materials?.[k]||0),ok=have>=Number(v);return `<span style="color:${workshopMatColorHotfixV54(k)}" class="${ok?'':'bad'}"><b>${v}</b> ${workshopMatNameHotfixV54(k)} <small>(${have})</small></span>`}).join(' · ')
+}
+function workshopCanCraftHotfixV54(r){return Object.entries(r?.cost||{}).every(([k,v])=>Number(profile.materials?.[k]||0)>=Number(v))}
+
+renderWorkshop=function(){
+ profile.materials ||= {};
+ for(const r of RECIPES)r.cat=workshopCategoryHotfixV54(r);
+ const cats=['all',...new Set(RECIPES.map(r=>workshopCategoryHotfixV54(r)).filter(Boolean))];
+ if(!cats.includes(craftFilter))craftFilter='all';
+ const recipes=RECIPES.filter(r=>craftFilter==='all'||workshopCategoryHotfixV54(r)===craftFilter);
+ const mats=profile.materials;
+ const palette=Object.keys(MATERIALS||{}).map(k=>`<span style="color:${workshopMatColorHotfixV54(k)}"><b>${MATERIALS[k]?.icon||'◇'} ${workshopMatNameHotfixV54(k)}</b> ${Number(mats[k]||0)}</span>`).join('');
+ $('#main').innerHTML=`
+  <div class="sectiontitle"><div><h2>WORKSHOP & GEM FORGE</h2><small>Crafting uses refined Workshop materials. Material stacks in Stash can be converted with REFINE.</small></div></div>
+  <div class="card material-palette-v43" style="display:flex;gap:10px;flex-wrap:wrap">${palette}</div>
+  <div class="tabs">${cats.map(c=>`<button class="tab ${craftFilter===c?'active':''}" data-craftfilter="${c}">${String(c).toUpperCase()}</button>`).join('')}</div>
+  <div class="grid">${recipes.map(r=>{let can=workshopCanCraftHotfixV54(r),cat=workshopCategoryHotfixV54(r);return `<div class="card"><div class="muted">${cat.toUpperCase()}</div><b>${r.name}</b><p class="muted recipe-desc-v42" style="line-height:1.45">${workshopRecipeDescHotfixV54(r)}</p><p class="muted" style="line-height:1.65">${workshopCostHTMLHotfixV54(r)}</p><button class="btn small primary craft" data-id="${r.id}" ${can?'':'disabled'}>${can?'CRAFT':'MISSING MATERIALS'}</button></div>`}).join('')||'<div class="card empty">NO RECIPES IN THIS CATEGORY</div>'}</div>
+  <div class="sectiontitle"><h2>SOCKET SERVICE</h2><small>Precision Setting discount ${Math.round((effects().socketDiscount||0)*100)}%</small></div>
+  <div class="card muted">Open the GEMS tab on any weapon or armor item to insert, remove, or etch sockets. Removal preserves the gem. Salvage also recovers all socketed gems.</div>
+  <div class="sectiontitle"><h2>REPAIR BAY</h2><small>Equipped gear</small></div>
+  <div class="grid">${Object.values(profile.loadout||{}).filter(i=>i&&i.maxDurability&&i.durability<i.maxDurability).map(i=>{let cost=Math.max(5,Math.ceil((i.maxDurability-i.durability)*.7));return itemCard(i,`<button class="btn small primary repair" data-id="${i.id}" data-cost="${cost}">${devFreeV43()?'REPAIR // DEV':`REPAIR ¤${cost}`}</button><button class="btn small ghost inspect" data-id="${i.id}">DETAILS</button>${socketEligibleV3(i)?`<button class="btn small ghost workshop-gems" data-id="${i.id}">GEMS</button>`:''}`)}).join('')||'<div class="card empty">ALL EQUIPMENT SERVICEABLE</div>'}</div>`;
+ $$('#main [data-craftfilter]').forEach(b=>b.onclick=()=>{craftFilter=b.dataset.craftfilter;renderWorkshop()});
+ $$('#main .craft').forEach(b=>b.onclick=()=>craft(b.dataset.id));
+ $$('#main .workshop-gems').forEach(b=>b.onclick=()=>itemModal(findProfileItemV3(b.dataset.id),null,'gems'));
+ $$('#main .repair').forEach(b=>b.onclick=()=>{let i=Object.values(profile.loadout||{}).find(x=>x?.id===b.dataset.id),c=Number(b.dataset.cost||0);if(!i)return;if(!devFreeV43()&&profile.credits<c)return toast('Not enough credits','bad');if(!devFreeV43())profile.credits-=c;i.durability=i.maxDurability;save();renderWorkshop();toast(`Item fully repaired${devFreeV43()?' // DEV':''}`,'good')});
+ bindItemInspect();
+};
+
+craft=function(id){
+ const r=RECIPES.find(x=>String(x.id)===String(id));
+ if(!r)return toast('Recipe not found','bad');
+ profile.materials ||= {};
+ const missing=Object.entries(r.cost||{}).filter(([k,v])=>Number(profile.materials[k]||0)<Number(v));
+ if(missing.length){
+  const msg=missing.map(([k,v])=>`${workshopMatNameHotfixV54(k)} ${Number(profile.materials[k]||0)}/${v}`).join(' · ');
+  toast(`Missing: ${msg}`,'bad');
+  return;
+ }
+ let output;
+ try{output=r.out()}catch(err){console.error('Workshop recipe failed',r.id,err);toast(`${r.name} could not be crafted`,'bad');return}
+ if(output==null){toast(`${r.name} produced no item`,'bad');return}
+ for(const [k,v] of Object.entries(r.cost||{}))profile.materials[k]=Math.max(0,Number(profile.materials[k]||0)-Number(v));
+ for(const i of (Array.isArray(output)?output:[output]))if(i)mergeInto(profile.stash,i);
+ profile.records ||= {};
+ profile.records.crafted=Number(profile.records.crafted||0)+1;
+ try{track('craft',1)}catch(e){}
+ save();
+ renderWorkshop();
+ try{beep(440,.1,'sawtooth')}catch(e){}
+ toast(`${r.name} crafted // moved to Stash`,'good');
+};
+/* ======================= END v5.4 WORKSHOP HOTFIX ======================= */
+
 /* ======================= END VOID EXTRACTOR v5.4 ======================= */
 
 boot();
